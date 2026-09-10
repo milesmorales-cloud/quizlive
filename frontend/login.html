@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Login - QuizLive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --slate-950: #020617;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-400: #94a3b8;
+            --slate-300: #cbd5e1;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+        }
+
+        body { background: var(--slate-950); min-height: 100vh; margin: 0; }
+
+        .auth-card {
+            background: linear-gradient(145deg, var(--slate-800) 0%, var(--slate-900) 100%);
+            border: 1px solid var(--slate-700);
+            border-radius: 1.5rem;
+        }
+
+        .tab-btn {
+            flex: 1; padding: 0.625rem 1rem; border-radius: 0.625rem;
+            font-weight: 600; font-size: 0.9375rem; transition: all 0.25s ease;
+            color: var(--slate-400); background: transparent; border: none; cursor: pointer;
+        }
+        .tab-btn.active {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+            color: white; box-shadow: 0 4px 14px -4px rgba(6,182,212,0.5);
+        }
+        .tab-btn:not(.active):hover { color: var(--slate-300); }
+
+        .input-field {
+            width: 100%; background: var(--slate-900); border: 1px solid var(--slate-700);
+            border-radius: 0.75rem; padding: 0.75rem 1rem; color: white;
+            font-size: 0.9375rem; transition: border-color 0.2s ease, box-shadow 0.2s ease;
+            box-sizing: border-box; outline: none; appearance: none;
+        }
+        .input-field:focus { border-color: var(--accent-cyan); box-shadow: 0 0 0 3px rgba(6,182,212,0.15); }
+        .input-field::placeholder { color: var(--slate-600); }
+        select.input-field option { background: var(--slate-900); color: white; }
+
+        .input-wrapper { position: relative; }
+        .toggle-password {
+            position: absolute; right: 0.875rem; top: 50%; transform: translateY(-50%);
+            background: none; border: none; cursor: pointer; color: var(--slate-400);
+            padding: 0; display: flex; align-items: center; transition: color 0.2s ease;
+        }
+        .toggle-password:hover { color: var(--slate-300); }
+
+        .btn-submit {
+            width: 100%; background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+            color: white; border: none; border-radius: 0.75rem; padding: 0.875rem 1rem;
+            font-weight: 700; font-size: 1rem; cursor: pointer; transition: all 0.3s ease;
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+        }
+        .btn-submit:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 25px -8px rgba(6,182,212,0.5); }
+        .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .btn-ghost {
+            background: none; border: none; cursor: pointer; font-size: 0.875rem;
+            font-weight: 600; color: var(--accent-cyan); padding: 0; transition: opacity 0.2s;
+        }
+        .btn-ghost:hover { opacity: 0.75; }
+
+        .error-banner {
+            background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 0.75rem; padding: 0.75rem 1rem; color: #fca5a5;
+            font-size: 0.875rem; display: none; align-items: center; gap: 0.5rem;
+        }
+        .error-banner.visible { display: flex; }
+
+        .success-banner {
+            background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 0.75rem; padding: 0.75rem 1rem; color: #6ee7b7;
+            font-size: 0.875rem; display: none; align-items: center; gap: 0.5rem;
+        }
+        .success-banner.visible { display: flex; }
+
+        .recovery-panel {
+            background: var(--slate-900); border: 1px solid var(--slate-700);
+            border-radius: 1.25rem; padding: 1.5rem; margin-top: 1rem;
+        }
+
+        .recovery-step { display: none; }
+        .recovery-step.active { display: block; }
+
+        .divider {
+            border: none; border-top: 1px solid var(--slate-800); margin: 1.5rem 0;
+        }
+
+        .spinner {
+            width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white; border-radius: 50%;
+            animation: spin 0.7s linear infinite; flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+
+        <!-- Brand -->
+        <a href="index.html" class="inline-flex items-center gap-2 mb-8" style="text-decoration:none;">
+            <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                </svg>
+            </div>
+            <span class="text-2xl font-extrabold text-white tracking-tight">QuizLive</span>
+        </a>
+
+        <!-- Auth Card -->
+        <div class="auth-card w-full max-w-md p-8">
+
+            <!-- Tab Switcher -->
+            <div class="flex gap-1 p-1 bg-slate-900 rounded-xl mb-8" id="tabBar">
+                <button class="tab-btn active" id="tabLogin" onclick="switchTab('login')">Log In</button>
+                <button class="tab-btn" id="tabSignup" onclick="switchTab('signup')">Sign Up</button>
+            </div>
+
+            <!-- ── LOGIN FORM ── -->
+            <form id="loginForm" onsubmit="handleLogin(event)" novalidate>
+                <div id="loginError" class="error-banner mb-4" role="alert">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span id="loginErrorText"></span>
+                </div>
+
+                <div class="mb-5">
+                    <label for="loginUsername" class="block text-sm font-semibold text-slate-300 mb-2">Username</label>
+                    <input type="text" id="loginUsername" class="input-field" placeholder="Enter your username" autocomplete="username" required />
+                </div>
+
+                <div class="mb-6">
+                    <label for="loginPassword" class="block text-sm font-semibold text-slate-300 mb-2">Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" id="loginPassword" class="input-field" placeholder="Enter your password" autocomplete="current-password" style="padding-right:3rem;" required />
+                        <button type="button" class="toggle-password" onclick="togglePassword('loginPassword','eyeLogin')" aria-label="Toggle password visibility">
+                            <svg id="eyeLogin" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn-submit" id="loginBtn">
+                    <span id="loginBtnText">Log In</span>
+                </button>
+
+                <!-- Forgot Password trigger -->
+                <div class="text-center mt-4">
+                    <button type="button" class="btn-ghost" onclick="toggleRecovery()">Forgot Password?</button>
+                </div>
+            </form>
+
+            <!-- ── PASSWORD RECOVERY PANEL ── -->
+            <div id="recoveryPanel" style="display:none;">
+                <hr class="divider">
+                <div class="recovery-panel">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                        </div>
+                        <h3 class="text-white font-bold text-base">Password Recovery</h3>
+                    </div>
+
+                    <!-- Step 1: enter username → fetch question -->
+                    <div id="recoveryStep1" class="recovery-step active">
+                        <div id="recoveryError1" class="error-banner mb-4" role="alert">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            <span id="recoveryError1Text"></span>
+                        </div>
+                        <div class="mb-4">
+                            <label for="recoveryUsername" class="block text-sm font-semibold text-slate-300 mb-2">Your Username</label>
+                            <input type="text" id="recoveryUsername" class="input-field" placeholder="Enter your username" autocomplete="off" />
+                        </div>
+                        <button type="button" class="btn-submit" id="fetchQuestionBtn" onclick="fetchSecurityQuestion()">
+                            <span id="fetchQuestionBtnText">Find My Account</span>
+                        </button>
+                    </div>
+
+                    <!-- Step 2: answer question → verify -->
+                    <div id="recoveryStep2" class="recovery-step">
+                        <div id="recoveryError2" class="error-banner mb-4" role="alert">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                                <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                            </svg>
+                            <span id="recoveryError2Text"></span>
+                        </div>
+
+                        <div class="mb-3 p-3 rounded-xl bg-slate-800 border border-slate-700">
+                            <p class="text-xs text-slate-500 mb-1">Security Question</p>
+                            <p id="displayedQuestion" class="text-slate-200 text-sm font-medium"></p>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="recoveryAnswer" class="block text-sm font-semibold text-slate-300 mb-2">Your Answer</label>
+                            <input type="text" id="recoveryAnswer" class="input-field" placeholder="Enter your answer" autocomplete="off" />
+                        </div>
+
+                        <!-- New password block (hidden until answer verified) -->
+                        <div id="newPasswordBlock" style="display:none;">
+                            <div id="recoverySuccess2" class="success-banner mb-4" role="status">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                                <span>Answer verified! Set your new password below.</span>
+                            </div>
+                            <div class="mb-4">
+                                <label for="newPassword" class="block text-sm font-semibold text-slate-300 mb-2">New Password</label>
+                                <div class="input-wrapper">
+                                    <input type="password" id="newPassword" class="input-field" placeholder="Min. 6 characters" autocomplete="new-password" style="padding-right:3rem;" />
+                                    <button type="button" class="toggle-password" onclick="togglePassword('newPassword','eyeNew')" aria-label="Toggle password visibility">
+                                        <svg id="eyeNew" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button type="button" class="btn-submit" id="verifyAnswerBtn" onclick="verifyAndReset()">
+                            <span id="verifyAnswerBtnText">Verify Answer</span>
+                        </button>
+
+                        <div class="text-center mt-3">
+                            <button type="button" class="btn-ghost text-slate-400" style="color:var(--slate-400);font-size:0.8125rem;" onclick="resetRecovery()">← Try a different username</button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: success -->
+                    <div id="recoveryStep3" class="recovery-step">
+                        <div class="text-center py-2">
+                            <div class="w-14 h-14 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                                </svg>
+                            </div>
+                            <p class="text-white font-bold text-lg mb-1">Password Updated!</p>
+                            <p class="text-slate-400 text-sm mb-5">You can now log in with your new password.</p>
+                            <button type="button" class="btn-submit" onclick="resetRecovery(); toggleRecovery();">Back to Log In</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── SIGNUP FORM ── -->
+            <form id="signupForm" style="display:none;" onsubmit="handleSignup(event)" novalidate>
+                <div id="signupError" class="error-banner mb-4" role="alert">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <span id="signupErrorText"></span>
+                </div>
+                <div id="signupSuccess" class="success-banner mb-4" role="status">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span id="signupSuccessText"></span>
+                </div>
+
+                <div class="mb-5">
+                    <label for="signupUsername" class="block text-sm font-semibold text-slate-300 mb-2">Username</label>
+                    <input type="text" id="signupUsername" class="input-field" placeholder="Choose a username (min. 3 chars)" autocomplete="username" required minlength="3" />
+                </div>
+
+                <div class="mb-5">
+                    <label for="signupPassword" class="block text-sm font-semibold text-slate-300 mb-2">Password</label>
+                    <div class="input-wrapper">
+                        <input type="password" id="signupPassword" class="input-field" placeholder="Create a password (min. 6 chars)" autocomplete="new-password" style="padding-right:3rem;" required minlength="6" />
+                        <button type="button" class="toggle-password" onclick="togglePassword('signupPassword','eyeSignup')" aria-label="Toggle password visibility">
+                            <svg id="eyeSignup" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-5">
+                    <label for="signupQuestion" class="block text-sm font-semibold text-slate-300 mb-2">Security Question</label>
+                    <select id="signupQuestion" class="input-field" required>
+                        <option value="" disabled selected>Choose a security question…</option>
+                        <option value="What was the name of your first pet?">What was the name of your first pet?</option>
+                        <option value="What is the name of the city where you were born?">What is the name of the city where you were born?</option>
+                        <option value="What was the name of your primary school?">What was the name of your primary school?</option>
+                    </select>
+                </div>
+
+                <div class="mb-6">
+                    <label for="signupAnswer" class="block text-sm font-semibold text-slate-300 mb-2">Security Answer</label>
+                    <input type="text" id="signupAnswer" class="input-field" placeholder="Your answer (case-insensitive)" autocomplete="off" required />
+                </div>
+
+                <button type="submit" class="btn-submit" id="signupBtn">
+                    <span id="signupBtnText">Create Account</span>
+                </button>
+            </form>
+        </div>
+
+        <p class="mt-6 text-slate-600 text-sm">QuizLive &mdash; Built for classrooms.</p>
+    </div>
+
+    <script>
+        const API_BASE = `http://${window.location.hostname}:3000`;
+
+        // Redirect if already logged in
+        if (localStorage.getItem('teacherToken')) {
+            window.location.href = 'teacher-dashboard.html';
+        }
+
+        // ── Recovery state ──
+        let recoveryVisible = false;
+        let recoveryAnswerVerified = false;
+        let recoveryUsername = '';
+        let recoveryQuestion = '';
+
+        // ── Tab switching ──
+        function switchTab(tab) {
+            const isLogin = tab === 'login';
+            document.getElementById('tabLogin').classList.toggle('active', isLogin);
+            document.getElementById('tabSignup').classList.toggle('active', !isLogin);
+            document.getElementById('loginForm').style.display = isLogin ? 'block' : 'none';
+            document.getElementById('recoveryPanel').style.display = 'none';
+            recoveryVisible = false;
+            document.getElementById('signupForm').style.display = isLogin ? 'none' : 'block';
+            hideEl('loginError'); hideEl('signupError'); hideEl('signupSuccess');
+        }
+
+        // ── Password visibility ──
+        function togglePassword(inputId, iconId) {
+            const input = document.getElementById(inputId);
+            const icon = document.getElementById(iconId);
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            icon.innerHTML = isHidden
+                ? `<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>`
+                : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+        }
+
+        // ── Banner helpers ──
+        function showBanner(id, textId, msg) {
+            const el = document.getElementById(id);
+            if (textId) document.getElementById(textId).textContent = msg;
+            el.classList.add('visible');
+        }
+        function hideEl(id) { document.getElementById(id)?.classList.remove('visible'); }
+
+        function setLoading(btnId, textId, loading, defaultText) {
+            const btn = document.getElementById(btnId);
+            const textEl = document.getElementById(textId);
+            btn.disabled = loading;
+            textEl.innerHTML = loading
+                ? `<span class="spinner"></span> Please wait...`
+                : defaultText;
+        }
+
+        // ── Recovery panel toggle ──
+        function toggleRecovery() {
+            recoveryVisible = !recoveryVisible;
+            document.getElementById('recoveryPanel').style.display = recoveryVisible ? 'block' : 'none';
+            if (!recoveryVisible) resetRecovery();
+        }
+
+        function resetRecovery() {
+            recoveryAnswerVerified = false;
+            recoveryUsername = '';
+            recoveryQuestion = '';
+            document.getElementById('recoveryUsername').value = '';
+            document.getElementById('recoveryAnswer').value = '';
+            document.getElementById('newPassword').value = '';
+            document.getElementById('newPasswordBlock').style.display = 'none';
+            hideEl('recoveryError1'); hideEl('recoveryError2'); hideEl('recoverySuccess2');
+            showStep('recoveryStep1');
+            document.getElementById('verifyAnswerBtnText').textContent = 'Verify Answer';
+            document.getElementById('verifyAnswerBtn').disabled = false;
+        }
+
+        function showStep(stepId) {
+            ['recoveryStep1','recoveryStep2','recoveryStep3'].forEach(id => {
+                document.getElementById(id).classList.remove('active');
+            });
+            document.getElementById(stepId).classList.add('active');
+        }
+
+        // ── Recovery Step 1: fetch question ──
+        async function fetchSecurityQuestion() {
+            hideEl('recoveryError1');
+            const username = document.getElementById('recoveryUsername').value.trim();
+            if (!username) {
+                return showBanner('recoveryError1', 'recoveryError1Text', 'Please enter your username.');
+            }
+
+            setLoading('fetchQuestionBtn', 'fetchQuestionBtnText', true, 'Find My Account');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/forgot-question/${encodeURIComponent(username)}`);
+                const data = await res.json();
+
+                if (!res.ok) throw new Error(data.error || 'Account not found.');
+
+                recoveryUsername = username;
+                recoveryQuestion = data.security_question;
+                document.getElementById('displayedQuestion').textContent = recoveryQuestion;
+                showStep('recoveryStep2');
+            } catch (err) {
+                showBanner('recoveryError1', 'recoveryError1Text', err.message);
+            } finally {
+                setLoading('fetchQuestionBtn', 'fetchQuestionBtnText', false, 'Find My Account');
+            }
+        }
+
+        // ── Recovery Step 2: verify answer (then reveal new-password block) ──
+        async function verifyAndReset() {
+            hideEl('recoveryError2');
+            const answer = document.getElementById('recoveryAnswer').value.trim();
+
+            if (!answer) {
+                return showBanner('recoveryError2', 'recoveryError2Text', 'Please enter your security answer.');
+            }
+
+            // If answer already verified, proceed to reset password
+            if (recoveryAnswerVerified) {
+                const newPassword = document.getElementById('newPassword').value;
+                if (!newPassword || newPassword.length < 6) {
+                    return showBanner('recoveryError2', 'recoveryError2Text', 'New password must be at least 6 characters.');
+                }
+
+                setLoading('verifyAnswerBtn', 'verifyAnswerBtnText', true, 'Save New Password');
+                try {
+                    const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            username: recoveryUsername,
+                            security_question: recoveryQuestion,
+                            security_answer: answer,
+                            new_password: newPassword
+                        })
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || 'Reset failed.');
+                    showStep('recoveryStep3');
+                } catch (err) {
+                    showBanner('recoveryError2', 'recoveryError2Text', err.message);
+                } finally {
+                    setLoading('verifyAnswerBtn', 'verifyAnswerBtnText', false, 'Save New Password');
+                }
+                return;
+            }
+
+            // First pass: just verify the answer
+            setLoading('verifyAnswerBtn', 'verifyAnswerBtnText', true, 'Verify Answer');
+            try {
+                // We use a dummy new_password to probe — server returns 401 if answer is wrong
+                const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        username: recoveryUsername,
+                        security_question: recoveryQuestion,
+                        security_answer: answer,
+                        new_password: '__verify_only__'   // too short → triggers 400 only if answer is right
+                    })
+                });
+                const data = await res.json();
+
+                // 401 = wrong answer; 400 with short-password error = answer correct
+                if (res.status === 401) throw new Error(data.error || 'Incorrect answer.');
+
+                // Answer is correct — reveal new password field
+                recoveryAnswerVerified = true;
+                document.getElementById('newPasswordBlock').style.display = 'block';
+                document.getElementById('recoverySuccess2').classList.add('visible');
+                document.getElementById('verifyAnswerBtnText').textContent = 'Save New Password';
+            } catch (err) {
+                showBanner('recoveryError2', 'recoveryError2Text', err.message);
+            } finally {
+                document.getElementById('verifyAnswerBtn').disabled = false;
+                if (!recoveryAnswerVerified) {
+                    document.getElementById('verifyAnswerBtnText').textContent = 'Verify Answer';
+                }
+            }
+        }
+
+        // ── Login ──
+        async function handleLogin(e) {
+            e.preventDefault();
+            hideEl('loginError');
+
+            const username = document.getElementById('loginUsername').value.trim();
+            const password = document.getElementById('loginPassword').value;
+
+            if (!username) return showBanner('loginError', 'loginErrorText', 'Please enter your username.');
+            if (!password) return showBanner('loginError', 'loginErrorText', 'Please enter your password.');
+
+            setLoading('loginBtn', 'loginBtnText', true, 'Log In');
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Login failed.');
+
+                localStorage.setItem('teacherToken', data.teacherToken);
+                localStorage.setItem('teacherUsername', data.username);
+                window.location.href = 'teacher-dashboard.html';
+            } catch (err) {
+                showBanner('loginError', 'loginErrorText', err.message);
+                setLoading('loginBtn', 'loginBtnText', false, 'Log In');
+            }
+        }
+
+        // ── Sign Up ──
+        async function handleSignup(e) {
+            e.preventDefault();
+            hideEl('signupError'); hideEl('signupSuccess');
+
+            const username = document.getElementById('signupUsername').value.trim();
+            const password = document.getElementById('signupPassword').value;
+            const security_question = document.getElementById('signupQuestion').value;
+            const security_answer = document.getElementById('signupAnswer').value.trim();
+
+            if (!username || username.length < 3) return showBanner('signupError', 'signupErrorText', 'Username must be at least 3 characters.');
+            if (!password || password.length < 6) return showBanner('signupError', 'signupErrorText', 'Password must be at least 6 characters.');
+            if (!security_question) return showBanner('signupError', 'signupErrorText', 'Please choose a security question.');
+            if (!security_answer || security_answer.length < 2) return showBanner('signupError', 'signupErrorText', 'Please enter a security answer (min. 2 characters).');
+
+            setLoading('signupBtn', 'signupBtnText', true, 'Create Account');
+            try {
+                const res = await fetch(`${API_BASE}/api/auth/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, security_question, security_answer })
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || 'Registration failed.');
+
+                document.getElementById('signupSuccess').classList.add('visible');
+                document.getElementById('signupSuccessText').textContent = 'Account created! Redirecting to log in…';
+                document.getElementById('signupUsername').value = '';
+                document.getElementById('signupPassword').value = '';
+                document.getElementById('signupQuestion').value = '';
+                document.getElementById('signupAnswer').value = '';
+                setTimeout(() => switchTab('login'), 1800);
+            } catch (err) {
+                showBanner('signupError', 'signupErrorText', err.message);
+            } finally {
+                setLoading('signupBtn', 'signupBtnText', false, 'Create Account');
+            }
+        }
+    </script>
+</body>
+</html>

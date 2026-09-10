@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Host Screen - QuizLive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --slate-950: #020617;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748b;
+            --slate-400: #94a3b8;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --answer-red: #ef4444;
+            --answer-blue: #3b82f6;
+            --answer-yellow: #eab308;
+            --answer-green: #22c55e;
+            --gold: #fbbf24;
+            --silver: #cbd5e1;
+            --bronze: #d97706;
+        }
+
+        body {
+            background: radial-gradient(1000px 600px at 50% -10%, rgba(6, 182, 212, 0.12), transparent 60%),
+                        var(--slate-950);
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .panel {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-700);
+            border-radius: 1.5rem;
+        }
+
+        .question-card {
+            background: linear-gradient(145deg, var(--slate-900), var(--slate-800));
+            border: 1px solid var(--slate-700);
+            border-radius: 2rem;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.8),
+                        inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+
+        .progress-ring {
+            width: 120px;
+            height: 120px;
+        }
+        .progress-ring circle {
+            fill: none;
+            stroke-width: 8;
+            stroke-linecap: round;
+        }
+        .progress-bg { stroke: var(--slate-800); }
+        .progress-fg { stroke: var(--accent-cyan); transition: stroke-dashoffset 0.3s linear; }
+
+        .leaderboard-row {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.875rem 1rem;
+            background: var(--slate-900);
+            border: 1px solid var(--slate-800);
+            border-radius: 1rem;
+            transition: all 0.2s ease;
+        }
+        .leaderboard-row:hover {
+            background: var(--slate-800);
+            border-color: var(--slate-700);
+        }
+        .leaderboard-row.rank-1 { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold)40; }
+        .leaderboard-row.rank-2 { border-color: var(--silver); box-shadow: 0 0 0 1px var(--silver)40; }
+        .leaderboard-row.rank-3 { border-color: var(--bronze); box-shadow: 0 0 0 1px var(--bronze)40; }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 9999px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 800;
+            font-size: 1rem;
+        }
+        .rank-badge {
+            width: 32px;
+            height: 32px;
+            border-radius: 9999px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 900;
+            font-size: 0.875rem;
+        }
+        .rank-1 .rank-badge { background: var(--gold); color: #1e1e1e; }
+        .rank-2 .rank-badge { background: var(--silver); color: #1e1e1e; }
+        .rank-3 .rank-badge { background: var(--bronze); color: white; }
+        .rank-other .rank-badge { background: var(--slate-700); color: var(--slate-300); }
+
+        .waiting-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(2,6,23,0.95);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 50;
+        }
+
+        .reveal-flash {
+            animation: revealFlash 0.8s ease;
+        }
+        .spinner-sm {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.35);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin-sm 0.8s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin-sm {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes revealFlash {
+            0% { box-shadow: 0 0 0 0 var(--answer-green); }
+            50% { box-shadow: 0 0 0 30px var(--answer-green)60; }
+            100% { box-shadow: 0 0 0 0 var(--answer-green); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Full-screen waiting overlay (before game-started) -->
+    <div id="waitingOverlay" class="waiting-overlay">
+        <div class="text-center">
+            <div class="inline-flex items-center gap-2 mb-6">
+                <div class="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </div>
+                <span class="font-extrabold text-white text-2xl">QuizLive</span>
+            </div>
+            <h1 class="text-4xl md:text-6xl font-extrabold text-white tracking-tight mb-4">Waiting to Start…</h1>
+            <p class="text-slate-400 text-lg">The game will begin when the host starts it</p>
+            <div class="mt-8 flex items-center justify-center gap-4">
+                <div class="w-12 h-12 border-4 border-slate-700 border-t-cyan-400 rounded-full animate-spin"></div>
+                <span class="text-slate-500 text-lg">Loading…</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main host screen (hidden until game-started) -->
+    <div id="hostScreen" class="min-h-screen flex flex-col p-4 md:p-8 hidden" style="max-width: 1400px; margin: 0 auto;">
+
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-6 md:mb-8">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </div>
+                <div>
+                    <p class="font-extrabold text-white text-lg">QuizLive</p>
+                    <p id="headerQuizTitle" class="text-slate-400 text-sm">Quiz Title</p>
+                </div>
+            </div>
+            <div class="text-right">
+                <p class="text-xs text-slate-500 uppercase tracking-wider">PIN</p>
+                <p id="headerPin" class="font-bold text-white text-lg tabular-nums">------</p>
+            </div>
+        </header>
+
+        <!-- Question Progress + Live Answer Counter -->
+        <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+            <div class="flex items-center gap-4">
+                <span id="questionProgress" class="text-lg font-semibold text-white">Question 1 of 1</span>
+                <span class="px-3 py-1 bg-slate-800 border border-slate-700 rounded-full text-slate-300 text-sm font-medium" id="questionTimer">--:--</span>
+            </div>
+            <div class="flex items-center gap-3 text-right md:ml-auto">
+                <div class="relative progress-ring">
+                    <svg class="w-full h-full" viewBox="0 0 120 120">
+                        <circle class="progress-bg" cx="60" cy="60" r="52"></circle>
+                        <circle class="progress-fg" id="progressFg" cx="60" cy="60" r="52"
+                            stroke-dasharray="326.7" stroke-dashoffset="0"
+                            transform="rotate(-90 60 60)"></circle>
+                    </svg>
+                    <div class="absolute inset-0 flex items-center justify-center">
+                        <span id="progressText" class="text-2xl font-extrabold text-white">0/0</span>
+                    </div>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-500 uppercase tracking-wider">Players Answered</p>
+                    <p id="progressLabel" class="text-sm font-semibold text-white">Waiting for answers…</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content: Question Card (left) + Live Leaderboard (right) -->
+        <div class="grid grid-cols-1 lg:grid-cols-[1fr_380px] gap-6 mb-6">
+            <!-- LEFT: Big Question Card -->
+            <div class="question-card p-6 md:p-10 flex flex-col">
+                <!-- Question Number Badge -->
+                <div class="flex items-center justify-between mb-6">
+                    <div class="flex items-center gap-3">
+                        <span class="text-xs font-bold text-slate-400 uppercase tracking-wider">Question</span>
+                        <span id="currentQuestionNumber" class="text-2xl md:text-3xl font-extrabold text-cyan-400 tabular-nums">1</span>
+                    </div>
+                    <span id="timeLimitBadge" class="px-4 py-1.5 bg-slate-800 border border-slate-700 rounded-full text-sm font-semibold text-slate-300">30s limit</span>
+                </div>
+
+                <!-- Question Text -->
+                <p id="hostQuestionText" class="text-2xl md:text-4xl lg:text-5xl font-bold text-white leading-tight mb-8 flex-1 flex items-center">
+                    Waiting for the first question…
+                </p>
+
+                <!-- Answer Options Preview (small, for host reference) -->
+                <div id="hostOptionsPreview" class="grid grid-cols-2 gap-3 hidden" aria-hidden="true">
+                    <div class="answer-preview red" data-letter="A">
+                        <span class="label">A</span><span class="text" id="optA">–</span>
+                    </div>
+                    <div class="answer-preview blue" data-letter="B">
+                        <span class="label">B</span><span class="text" id="optB">–</span>
+                    </div>
+                    <div class="answer-preview yellow" data-letter="C">
+                        <span class="label">C</span><span class="text" id="optC">–</span>
+                    </div>
+                    <div class="answer-preview green" data-letter="D">
+                        <span class="label">D</span><span class="text" id="optD">–</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- RIGHT: Live Leaderboard -->
+            <aside class="lg:sticky lg:top-24 space-y-3">
+                <div class="panel p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="font-bold text-white text-lg">Live Scoreboard</h2>
+                        <span id="leaderboardStatus" class="text-xs font-medium px-2 py-1 rounded-full bg-slate-800 text-slate-400">Waiting…</span>
+                    </div>
+                    <div id="leaderboard" class="space-y-2">
+                        <div class="text-slate-500 text-center py-6 text-sm">No scores yet</div>
+                    </div>
+                </div>
+            </aside>
+        </div>
+
+        <!-- Bottom Controls / Next Question Prompt -->
+        <div id="nextPrompt" class="hidden text-center py-8">
+            <p class="text-slate-400 text-lg mb-4">All players have answered. Ready for the next question?</p>
+            <button id="nextQuestionBtn" class="inline-flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 text-white font-bold text-lg rounded-xl hover:from-cyan-400 hover:to-emerald-400 transition">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+                Next Question
+            </button>
+        </div>
+
+        <div id="gameEndPrompt" class="hidden text-center py-8">
+            <p class="text-slate-400 text-lg mb-2">Game complete! The leaderboard is ready on this screen.</p>
+            <p class="text-slate-500 text-sm mb-6">Your students are on a waiting screen — reveal the results when you're ready.</p>
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
+                <button id="showResultsBtn" onclick="showResults()" class="inline-flex items-center gap-3 px-8 py-3 bg-gradient-to-r from-cyan-500 to-emerald-500 text-white font-bold text-lg rounded-xl hover:from-cyan-400 hover:to-emerald-400 transition shadow-lg shadow-cyan-500/20">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                    Show Results
+                </button>
+            </div>
+            <a href="teacher-dashboard.html" class="inline-flex items-center gap-3 px-8 py-3 bg-slate-800 text-slate-300 font-bold text-lg rounded-xl hover:bg-slate-700 transition border border-slate-700">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="3" y="3" width="7" height="9" rx="1"/>
+                    <rect x="14" y="3" width="7" height="5" rx="1"/>
+                    <rect x="14" y="12" width="7" height="9" rx="1"/>
+                    <rect x="3" y="16" width="7" height="5" rx="1"/>
+                </svg>
+                Back to Dashboard
+            </a>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/sound.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        const pin = localStorage.getItem('quizlive_pin');
+        const isHost = localStorage.getItem('quizlive_isHost') === 'true';
+
+        // Re-bind this fresh page socket to the live lobby (same reason as the
+        // waiting room: navigation dropped the previous host socket).
+        if (isHost) {
+            reclaimLobby();
+        }
+
+        if (!pin) {
+            console.warn('[Host] No PIN in localStorage, redirecting to dashboard');
+            window.location.href = 'teacher-dashboard.html';
+        }
+        if (!isHost) {
+            console.warn('[Host] Not a host, redirecting to live-quiz.html');
+            window.location.href = 'live-quiz.html';
+        }
+
+        document.getElementById('headerPin').textContent = pin;
+
+        const PROGRESS_CIRC = 2 * Math.PI * 52; // ~326.7
+        const progressFg = document.getElementById('progressFg');
+        const progressText = document.getElementById('progressText');
+        const progressLabel = document.getElementById('progressLabel');
+        const leaderboardEl = document.getElementById('leaderboard');
+        const leaderboardStatus = document.getElementById('leaderboardStatus');
+        const hostQuestionText = document.getElementById('hostQuestionText');
+        const questionProgress = document.getElementById('questionProgress');
+        const currentQuestionNumber = document.getElementById('currentQuestionNumber');
+        const timeLimitBadge = document.getElementById('timeLimitBadge');
+        const hostOptionsPreview = document.getElementById('hostOptionsPreview');
+        const waitingOverlay = document.getElementById('waitingOverlay');
+        const hostScreen = document.getElementById('hostScreen');
+        const nextPrompt = document.getElementById('nextPrompt');
+        const gameEndPrompt = document.getElementById('gameEndPrompt');
+        const headerQuizTitle = document.getElementById('headerQuizTitle');
+
+        let currentQuestion = null;
+        let totalQuestions = 0;
+        let allAnswered = false;
+
+        progressFg.style.strokeDasharray = PROGRESS_CIRC;
+        progressFg.style.strokeDashoffset = 0;
+
+        function setProgress(answered, total) {
+            progressText.textContent = `${answered}/${total}`;
+            progressLabel.textContent = total > 0 ? `${answered} of ${total} players answered` : 'Waiting for answers…';
+            const ratio = total > 0 ? answered / total : 0;
+            const offset = PROGRESS_CIRC * (1 - ratio);
+            progressFg.style.strokeDashoffset = offset;
+            progressFg.style.stroke = ratio >= 1 ? 'var(--accent-emerald)' : 'var(--accent-cyan)';
+        }
+
+        function renderLeaderboard(lb) {
+            if (!lb || lb.length === 0) {
+                leaderboardEl.innerHTML = '<div class="text-slate-500 text-center py-6 text-sm">No scores yet</div>';
+                leaderboardStatus.textContent = 'Waiting…';
+                leaderboardStatus.className = 'text-xs font-medium px-2 py-1 rounded-full bg-slate-800 text-slate-400';
+                return;
+            }
+            leaderboardEl.innerHTML = lb.map((p, i) => {
+                const rank = i + 1;
+                const rankClass = rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : 'rank-other';
+                const initial = (p.username || '?').charAt(0).toUpperCase();
+                const isHost = p.isHost;
+                return `
+                    <div class="leaderboard-row ${rankClass}${isHost ? ' opacity-60' : ''}">
+                        <span class="rank-badge">${rank}</span>
+                        <div class="flex items-center gap-3 min-w-0">
+                            <span class="avatar flex-shrink-0">${initial}</span>
+                            <span class="font-semibold text-white truncate">${p.username || 'Player'}${isHost ? ' <span class="text-xs text-slate-400 font-normal ml-2">(Host)</span>' : ''}</span>
+                        </div>
+                        <span class="font-extrabold text-white tabular-nums text-lg">${p.score || 0} pts</span>
+                    </div>
+                `;
+            }).join('');
+            leaderboardStatus.textContent = `${lb.length} player${lb.length !== 1 ? 's' : ''}`;
+            leaderboardStatus.className = 'text-xs font-medium px-2 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30';
+        }
+
+        // --- Socket listeners ---
+
+        socket.on('game-started', (data) => {
+            totalQuestions = data.totalQuestions;
+            headerQuizTitle.textContent = data.quizTitle || 'Quiz';
+            questionProgress.textContent = `Question 1 of ${totalQuestions}`;
+            currentQuestionNumber.textContent = '1';
+
+            waitingOverlay.classList.add('hidden');
+            hostScreen.classList.remove('hidden');
+            hostScreen.classList.add('flex');
+
+            // Initialize leaderboard with zeros
+            renderLeaderboard(data.players);
+        });
+
+        socket.on('next-question', (data) => {
+            currentQuestion = data.question;
+            totalQuestions = data.totalQuestions;
+            headerQuizTitle.textContent = data.quizTitle || 'Quiz';
+            questionProgress.textContent = `Question ${data.questionIndex + 1} of ${totalQuestions}`;
+            currentQuestionNumber.textContent = data.questionIndex + 1;
+            timeLimitBadge.textContent = `${data.question.timeLimit}s limit`;
+
+            hostQuestionText.textContent = currentQuestion.text;
+
+            // Show options preview
+            const letters = ['A', 'B', 'C', 'D'];
+            letters.forEach((L) => {
+                const text = currentQuestion.options[L];
+                const el = document.getElementById(`opt${L}`);
+                if (el) {
+                    el.textContent = text || '–';
+                    el.parentElement.classList.remove('hidden');
+                }
+            });
+            hostOptionsPreview.classList.remove('hidden');
+
+            // Reset progress & UI
+            allAnswered = false;
+            setProgress(0, 0);
+            nextPrompt.classList.add('hidden');
+            gameEndPrompt.classList.add('hidden');
+
+            // Re-enable for visual (host doesn't click, but it helps clarity)
+            document.querySelectorAll('.answer-preview').forEach((p) => {
+                p.classList.remove('reveal-flash');
+                p.style.filter = '';
+            });
+        });
+
+        socket.on('player-answered', (data) => {
+            setProgress(data.answeredCount, data.totalPlayers);
+            renderLeaderboard(data.leaderboard);
+
+            if (data.answeredCount >= data.totalPlayers && data.totalPlayers > 0 && !allAnswered) {
+                allAnswered = true;
+                progressLabel.textContent = 'All players have answered!';
+                progressFg.style.stroke = 'var(--accent-emerald)';
+                // Next button appears after a brief pause (or host can wait for time-up)
+                setTimeout(() => {
+                    if (!allAnswered) return;
+                    nextPrompt.classList.remove('hidden');
+                }, 500);
+            }
+        });
+
+        socket.on('question-time-up', (data) => {
+            // Reveal sound + highlight the correct answer on the host screen
+            QuizLiveSound.play('reveal');
+            const correctLetter = data.correctAnswer;
+            const correctPad = document.querySelector(`.answer-preview[data-letter="${correctLetter}"]`);
+            if (correctPad) {
+                correctPad.classList.add('reveal-flash');
+                correctPad.style.filter = 'brightness(1.2)';
+                // Add checkmark
+                const existingCheck = correctPad.querySelector('.checkmark');
+                if (!existingCheck) {
+                    const check = document.createElement('span');
+                    check.className = 'checkmark ml-2';
+                    check.innerHTML = '✓';
+                    correctPad.querySelector('.text')?.appendChild(check);
+                }
+            }
+
+            // Update leaderboard with final scores for this question
+            renderLeaderboard(data.leaderboard);
+            progressLabel.textContent = 'Time\'s up — revealing answer';
+            nextPrompt.classList.add('hidden');
+        });
+
+        socket.on('game-finished', (data) => {
+            renderLeaderboard(data.leaderboard);
+            nextPrompt.classList.add('hidden');
+            gameEndPrompt.classList.remove('hidden');
+        });
+
+        // Host clicks "Show Results" → broadcast to every student's live-quiz
+        // screen so they navigate to the podium. The broadcast also reaches
+        // this host socket, but host-game.html has no show-results listener so
+        // the teacher stays here on the leaderboard (see the dashboard link).
+        function showResults() {
+            const btn = document.getElementById('showResultsBtn');
+            if (!btn || btn.disabled) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="inline-flex items-center gap-2"><span class="spinner-sm"></span> Sending…</span>';
+
+            socket.emit('host-show-results', { pin }, (response) => {
+                if (!response || !response.success) {
+                    btn.disabled = false;
+                    btn.innerHTML = 'Show Results';
+                    alert(response?.error || 'Could not show results.');
+                    return;
+                }
+                btn.innerHTML = '<span class="inline-flex items-center gap-2">✓ Results shown</span>';
+            });
+        }
+
+        socket.on('connect_error', () => {
+            console.error('[Host] Cannot reach server');
+        });
+
+        // Next Question button (host can advance manually if all answered, or wait for auto)
+        document.getElementById('nextQuestionBtn').addEventListener('click', () => {
+            // The server auto-advances after 5s on time-up, so this is just a UI affordance.
+            // We don't emit anything; just hide the prompt.
+            nextPrompt.classList.add('hidden');
+        });
+
+        // Initial
+        if (isHost && pin) {
+            // We're waiting for game-started to be broadcast
+        }
+    </script>
+</body>
+</html>

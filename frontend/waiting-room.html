@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting Room - QuizLive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --slate-950: #020617;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748b;
+            --slate-400: #94a3b8;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+        }
+
+        body {
+            background: radial-gradient(1000px 500px at 50% -10%, rgba(6, 182, 212, 0.12), transparent 60%),
+                        var(--slate-950);
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .pin-box {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-700);
+            border-radius: 1.25rem;
+        }
+
+        .qr-frame {
+            background: white;
+            border-radius: 1.25rem;
+            padding: 1rem;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 0 0 1px var(--slate-700), 0 20px 40px -16px rgba(0,0,0,0.6);
+        }
+
+        #qrcode canvas,
+        #qrcode img {
+            display: block;
+            border-radius: 0.5rem;
+        }
+
+        .pin-digits {
+            letter-spacing: 0.35em;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .player-chip {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-800);
+            border-radius: 1rem;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            animation: pop 0.3s ease;
+        }
+
+        @keyframes pop {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 9999px;
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 700;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .btn-start {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+            color: white;
+            border: none;
+            border-radius: 1.25rem;
+            padding: 1.5rem 3rem;
+            font-size: 1.5rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 15px 40px -12px rgba(6, 182, 212, 0.6);
+        }
+
+        .btn-start:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 50px -12px rgba(6, 182, 212, 0.7);
+        }
+
+        .btn-start:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .join-toast {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-700);
+            border-radius: 1rem;
+            padding: 0.75rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            box-shadow: 0 20px 40px -16px rgba(0, 0, 0, 0.6);
+            animation: toast-in 0.35s ease;
+            width: 100%;
+            max-width: 100%;
+        }
+
+        .join-toast.leaving {
+            animation: toast-out 0.3s ease forwards;
+        }
+
+        @keyframes toast-in {
+            from { opacity: 0; transform: translateY(-12px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        @keyframes toast-out {
+            from { opacity: 1; transform: translateY(0) scale(1); }
+            to { opacity: 0; transform: translateY(-12px) scale(0.96); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Host join notifications (host only; kept empty for players) -->
+    <div id="joinToasts" class="hidden fixed top-5 left-1/2 -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-sm px-4"></div>
+
+    <div class="min-h-screen flex flex-col items-center justify-center px-4 py-10">
+        <div class="w-full max-w-3xl mx-auto text-center">
+            <!-- Header -->
+            <div class="mb-10">
+                <div class="inline-flex items-center gap-2 mb-5">
+                    <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                    </div>
+                    <span class="font-extrabold text-white text-lg">QuizLive</span>
+                </div>
+                <h1 class="text-3xl md:text-4xl font-extrabold text-white tracking-tight mb-2">Waiting Room</h1>
+                <p class="text-slate-400">Share the PIN so players can join the game</p>
+            </div>
+
+            <!-- PIN + QR Code dual section -->
+            <div class="flex flex-col md:flex-row items-center justify-center gap-8 mb-8">
+
+                <!-- PIN Display -->
+                <div id="gamePinDisplay" class="pin-box inline-block px-10 py-6">
+                    <p class="text-xs font-semibold text-slate-400 uppercase tracking-widest mb-2">Game PIN</p>
+                    <p id="pinValue" class="pin-digits text-4xl md:text-5xl font-extrabold text-cyan-400">------</p>
+                </div>
+
+                <!-- QR Code Frame -->
+                <div class="flex flex-col items-center gap-3">
+                    <div class="qr-frame">
+                        <div id="qrcode"></div>
+                    </div>
+                    <p class="text-slate-400 text-sm font-medium flex items-center gap-1.5">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-cyan-400" style="color:var(--accent-cyan)">
+                            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+                            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+                        </svg>
+                        Scan QR Code to join instantly
+                    </p>
+                    <!-- Exact URL encoded into the QR — lets the host confirm ?pin= is present -->
+                    <p id="qrUrlText" class="text-xs text-slate-600 font-mono break-all max-w-[220px] text-center" style="color:#475569"></p>
+                </div>
+            </div>
+
+            <!-- Player Counter -->
+            <div class="mb-8">
+                <p class="text-slate-400 mb-2">
+                    <span id="playerCounter" class="text-2xl font-extrabold text-white align-middle">⏱️</span>
+                    <span class="align-middle"> player(s) joining</span>
+                </p>
+            </div>
+
+            <!-- Player List Grid -->
+            <div id="playerList" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 mb-10">
+                <div class="col-span-full text-slate-600 text-sm py-4">get ready...</div>
+            </div>
+
+            <!-- Start Game Button (host only) -->
+            <div id="hostControls" class="hidden">
+                <button id="startGameBtn" class="btn-start" onclick="startGame()">
+                    <span class="inline-flex items-center gap-3">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 3l14 9-14 9V3z"/>
+                        </svg>
+                        Start Game
+                    </span>
+                </button>
+                <p id="startError" class="text-red-400 mt-3 text-sm hidden"></p>
+            </div>
+
+            <!-- Player waiting message -->
+            <div id="playerNotice" class="hidden">
+                <p class="text-slate-400">Waiting for the host to start the game...</p>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        const pin = localStorage.getItem('quizlive_pin');
+        const isHost = localStorage.getItem('quizlive_isHost') === 'true';
+
+        // Re-bind this page's fresh socket to the lobby created on the
+        // dashboard. Without this the lobby would be orphaned the moment the
+        // host navigated here (page change drops the old socket).
+        if (isHost) {
+            reclaimLobby();
+        }
+
+        // Display the PIN
+        document.getElementById('pinValue').textContent = pin || '------';
+
+        // Generate QR code for the join URL (host view only).
+        // The URL is rebuilt at render time from the CURRENT hostname + pin —
+        // never trusted from a stored quizlive_joinUrl string, which can go
+        // stale between sessions. When the host loaded via localhost, fall
+        // back to the server-detected LAN IP so the phone can reach the page.
+        async function renderJoinQrCode() {
+            const ready = setInterval(() => {
+                if (typeof QRCode === 'function' && socket.connected) {
+                    clearInterval(ready);
+                    resolveJoinUrl().then((joinUrl) => {
+                        new QRCode(document.getElementById('qrcode'), {
+                            text: joinUrl,
+                            width: 190,
+                            height: 190,
+                            colorDark: '#000000',
+                            colorLight: '#ffffff',
+                            correctLevel: QRCode.CorrectLevel.M
+                        });
+                        // Show the exact encoded URL so the host can verify
+                        // it carries the ?pin= parameter at a glance.
+                        document.getElementById('qrUrlText').textContent = joinUrl;
+                    });
+                }
+            }, 200);
+        }
+
+        async function resolveJoinUrl() {
+            const currentPin = localStorage.getItem('quizlive_pin');
+            // The whole app runs on port 3000 — the QR join link is always
+            // http://<hostname>:3000/join-quiz.html?pin=<pin>. Hostname is
+            // dynamic so scanning works whether the teacher opened the page
+            // via localhost:3000 or 192.168.x.x:3000, and never hardcodes an IP.
+            const host = window.location.hostname;
+            const isLocal = /^(localhost|127\.0\.0\.1|::1)$/i.test(host);
+            let base = host;
+
+            if (isLocal) {
+                // Localhost on the PC → use the LAN IP the backend detected,
+                // otherwise students' phones won't reach the page.
+                try {
+                    const ipRes = await fetch(`${BACKEND_URL}/api/network-ip`);
+                    const ipData = await ipRes.json();
+                    if (ipData.ip) base = ipData.ip;
+                } catch (_) { /* keep hostname as fallback */ }
+            }
+
+            return `http://${base}:3000/join-quiz.html?pin=${currentPin}`;
+        }
+
+        if (isHost && pin) {
+            renderJoinQrCode();
+        } else {
+            // Hide QR section for players
+            const qrSection = document.getElementById('qrcode');
+            if (qrSection) qrSection.closest('.flex.flex-col.items-center').style.display = 'none';
+        }
+
+        // Show host or player controls
+        const hostControls = document.getElementById('hostControls');
+        const playerNotice = document.getElementById('playerNotice');
+        if (isHost) {
+            hostControls.classList.remove('hidden');
+        } else {
+            playerNotice.classList.remove('hidden');
+        }
+
+        // Live player counter & roster are now handled in js/app.js
+        // (single source of truth — no duplicate listener here)
+
+        // Start the game (host only) - dispatches the real 'start-game' event
+        function startGame() {
+            const btn = document.getElementById('startGameBtn');
+            const err = document.getElementById('startError');
+
+            btn.disabled = true;
+            err.classList.add('hidden');
+
+            socket.emit('start-game', { pin }, (response) => {
+                if (!response || !response.success) {
+                    err.textContent = response?.error || 'Unable to start the game.';
+                    err.classList.remove('hidden');
+                    btn.disabled = false;
+                }
+                // On success the server broadcasts 'game-started' + 'next-question',
+                // and the client redirects to the live arena in live-quiz.html
+            });
+        }
+
+        // Listen for the server's game-started broadcast
+        // Host goes to host-game.html (teacher screen), players go to live-quiz.html
+        socket.on('game-started', () => {
+            const isHost = localStorage.getItem('quizlive_isHost') === 'true';
+            window.location.href = isHost ? 'host-game.html' : 'live-quiz.html';
+        });
+
+        // If not connected, surface it
+        socket.on('connect_error', () => {
+            const err = document.getElementById('startError');
+            if (err) {
+                err.textContent = 'Cannot reach the server. Is the backend running?';
+                err.classList.remove('hidden');
+            }
+        });
+
+        // ------------------------------------------------------------
+        // Host join toast: the server emits 'player-joined-lobby' whenever a
+        // student enters, separate from the roster sync. The host's screen
+        // pops a small "X joined the lobby" notice (the roster update in
+        // app.js already adds their name to the list simultaneously).
+        // ------------------------------------------------------------
+        const joinToasts = document.getElementById('joinToasts');
+        if (isHost && joinToasts) {
+            joinToasts.classList.remove('hidden');
+        }
+
+        function showJoinToast(username) {
+            if (!joinToasts || !isHost) return;
+
+            // Build the toast with DOM APIs + textContent so a student-chosen
+            // nickname can never inject HTML/script into the host's screen.
+            const name = String(username ?? '').slice(0, 15);
+
+            const toast = document.createElement('div');
+            toast.className = 'join-toast';
+
+            const avatar = document.createElement('span');
+            avatar.className = 'rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 h-9 w-9 flex items-center justify-center text-white font-bold flex-shrink-0';
+            avatar.textContent = (name || '?').charAt(0).toUpperCase();
+
+            const msg = document.createElement('p');
+            msg.className = 'text-sm font-semibold text-white';
+            const strong = document.createElement('span');
+            strong.className = 'text-cyan-400 font-bold';
+            strong.textContent = name || 'Someone';
+            msg.appendChild(strong);
+            msg.appendChild(document.createTextNode(' joined the lobby'));
+
+            const badge = document.createElement('span');
+            badge.className = 'ml-auto text-[10px] font-semibold uppercase tracking-wider bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-full flex-shrink-0';
+            badge.textContent = 'online';
+
+            toast.appendChild(avatar);
+            toast.appendChild(msg);
+            toast.appendChild(badge);
+
+            joinToasts.appendChild(toast);
+
+            // Auto-dismiss after 4 seconds
+            setTimeout(() => {
+                toast.classList.add('leaving');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        socket.on('player-joined-lobby', (data) => {
+            showJoinToast(data?.username);
+        });
+    </script>
+</body>
+</html>

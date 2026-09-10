@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Quiz - QuizLive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --slate-950: #020617;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748b;
+            --slate-400: #94a3b8;
+            --slate-300: #cbd5e1;
+            --answer-red: #ef4444;
+            --answer-red-bg: #451a1a;
+            --answer-red-border: #7f1d1d;
+            --answer-blue: #3b82f6;
+            --answer-blue-bg: #172554;
+            --answer-blue-border: #1e3a8a;
+            --answer-yellow: #eab308;
+            --answer-yellow-bg: #3b2f04;
+            --answer-yellow-border: #713f12;
+            --answer-green: #22c55e;
+            --answer-green-bg: #052e16;
+            --answer-green-border: #14532d;
+        }
+
+        body {
+            background: var(--slate-950);
+            min-height: 100vh;
+        }
+
+        .question-panel {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-700);
+            border-radius: 1.5rem;
+            transition: border-color 0.3s ease;
+        }
+
+        .question-panel:hover {
+            border-color: var(--slate-600);
+        }
+
+        .input-base {
+            width: 100%;
+            background: var(--slate-800);
+            border: 1px solid var(--slate-700);
+            border-radius: 0.75rem;
+            padding: 0.875rem 1rem;
+            color: white;
+            font-size: 0.9375rem;
+            outline: none;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .input-base::placeholder {
+            color: var(--slate-500);
+        }
+
+        .input-base:focus {
+            border-color: var(--slate-500);
+            box-shadow: 0 0 0 3px rgba(100, 116, 139, 0.2);
+        }
+
+        select.input-base {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg width='12' height='8' viewBox='0 0 12 8' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1.5L6 6.5L11 1.5' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            padding-right: 2.5rem;
+        }
+
+        textarea.input-base {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        /* Answer Blocks */
+        .answer-block {
+            position: relative;
+            border-radius: 1rem;
+            padding: 1rem 1rem 1rem 3.5rem;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .answer-block.red {
+            background: var(--answer-red-bg);
+            border: 2px solid var(--answer-red-border);
+        }
+
+        .answer-block.blue {
+            background: var(--answer-blue-bg);
+            border: 2px solid var(--answer-blue-border);
+        }
+
+        .answer-block.yellow {
+            background: var(--answer-yellow-bg);
+            border: 2px solid var(--answer-yellow-border);
+        }
+
+        .answer-block.green {
+            background: var(--answer-green-bg);
+            border: 2px solid var(--answer-green-border);
+        }
+
+        .answer-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .answer-block .input-base {
+            flex: 1;
+            background: rgba(0, 0, 0, 0.3);
+            border-color: transparent;
+        }
+
+        .answer-block .input-base:focus {
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: none;
+        }
+
+        /* Radio Button */
+        .radio-wrapper {
+            position: relative;
+            width: 28px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+
+        .radio-wrapper input {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+            z-index: 1;
+        }
+
+        .radio-visual {
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            border: 2px solid var(--slate-600);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            background: var(--slate-800);
+        }
+
+        .radio-visual::after {
+            content: '';
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: transparent;
+            transition: background 0.2s ease;
+        }
+
+        .radio-wrapper input:checked + .radio-visual {
+            border-color: var(--answer-green);
+            background: rgba(34, 197, 94, 0.1);
+        }
+
+        .radio-wrapper input:checked + .radio-visual::after {
+            background: var(--answer-green);
+        }
+
+        .radio-wrapper input:focus + .radio-visual {
+            box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.3);
+        }
+
+        /* Add / Remove Buttons */
+        .btn-add {
+            background: var(--slate-800);
+            border: 2px dashed var(--slate-600);
+            border-radius: 1rem;
+            padding: 1.25rem;
+            color: var(--slate-400);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            font-weight: 600;
+            font-size: 0.9375rem;
+        }
+
+        .btn-add:hover {
+            border-color: var(--slate-500);
+            color: white;
+            background: var(--slate-700);
+        }
+
+        .btn-remove {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.25);
+            color: #f87171;
+            padding: 0.375rem 0.875rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+        }
+
+        .btn-remove:hover {
+            background: rgba(239, 68, 68, 0.18);
+            border-color: rgba(239, 68, 68, 0.5);
+            color: #ef4444;
+        }
+
+        .btn-submit {
+            background: linear-gradient(135deg, #06b6d4, #10b981);
+            color: white;
+            border: none;
+            border-radius: 1rem;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+
+        .btn-submit:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px -10px rgba(6, 182, 212, 0.5);
+        }
+
+        .btn-submit:active {
+            transform: translateY(0);
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast.success {
+            background: var(--answer-green);
+            color: #052e16;
+        }
+
+        .toast.error {
+            background: var(--answer-red);
+            color: white;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="min-h-screen pb-12">
+        <!-- Header -->
+        <div class="sticky top-0 z-50 backdrop-blur-xl bg-slate-950/80 border-b border-slate-800">
+            <div class="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+                <a href="index.html" class="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M19 12H5M12 19l-7-7 7-7"/>
+                    </svg>
+                    Back
+                </a>
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                        </svg>
+                    </div>
+                    <span class="font-bold text-white">QuizLive</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="max-w-3xl mx-auto px-4 py-8">
+            <div class="mb-8">
+                <h1 class="text-3xl md:text-4xl font-extrabold text-white mb-2 tracking-tight">Create a Quiz</h1>
+                <p class="text-slate-400">Build questions manually. No AI, just your knowledge.</p>
+            </div>
+
+            <!-- Quiz Title -->
+            <div class="mb-8">
+                <label class="block text-sm font-semibold text-slate-300 mb-2">Quiz Title</label>
+                <input
+                    type="text"
+                    id="quizTitle"
+                    class="input-base"
+                    placeholder="e.g. Chapter 5 - The Water Cycle"
+                    maxlength="100"
+                >
+            </div>
+
+            <!-- Questions Container -->
+            <div id="questionsContainer">
+                <!-- Question 1 (default) -->
+                <div class="question-panel p-6 mb-6" data-question="1">
+                    <div class="flex items-center justify-between mb-5">
+                        <h3 class="text-lg font-bold text-white flex items-center gap-3">
+                            <span class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-400 border border-slate-700">1</span>
+                            Question
+                        </h3>
+                    <button type="button" class="btn-remove" onclick="removeQuestion(this)" style="visibility: hidden;">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        Remove Question
+                    </button>
+                    </div>
+
+                    <!-- Question Text -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Question Text</label>
+                        <textarea
+                            class="input-base"
+                            placeholder="Type your question here..."
+                            rows="2"
+                        ></textarea>
+                    </div>
+
+                    <!-- Time Limit -->
+                    <div class="mb-5">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Time Limit</label>
+                        <select class="input-base w-48">
+                            <option value="10">10 seconds</option>
+                            <option value="20">20 seconds</option>
+                            <option value="30" selected>30 seconds</option>
+                        </select>
+                    </div>
+
+                    <!-- Answer Options -->
+                    <div class="space-y-3">
+                        <!-- Red - Triangle -->
+                        <div class="answer-block red">
+                            <div class="answer-icon">
+                                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                    <polygon points="16,4 28,28 4,28" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                class="input-base"
+                                placeholder="Answer option..."
+                            >
+                            <label class="radio-wrapper" title="Mark as correct">
+                                <input type="radio" name="correct-1" value="A">
+                                <span class="radio-visual"></span>
+                            </label>
+                        </div>
+
+                        <!-- Blue - Diamond -->
+                        <div class="answer-block blue">
+                            <div class="answer-icon">
+                                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                    <polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round"/>
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                class="input-base"
+                                placeholder="Answer option..."
+                            >
+                            <label class="radio-wrapper" title="Mark as correct">
+                                <input type="radio" name="correct-1" value="B">
+                                <span class="radio-visual"></span>
+                            </label>
+                        </div>
+
+                        <!-- Yellow - Circle -->
+                        <div class="answer-block yellow">
+                            <div class="answer-icon">
+                                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                    <circle cx="16" cy="16" r="13" fill="none" stroke="#eab308" stroke-width="2.5"/>
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                class="input-base"
+                                placeholder="Answer option..."
+                            >
+                            <label class="radio-wrapper" title="Mark as correct">
+                                <input type="radio" name="correct-1" value="C">
+                                <span class="radio-visual"></span>
+                            </label>
+                        </div>
+
+                        <!-- Green - Square -->
+                        <div class="answer-block green">
+                            <div class="answer-icon">
+                                <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                                    <rect x="5" y="5" width="22" height="22" rx="2" fill="none" stroke="#22c55e" stroke-width="2.5"/>
+                                </svg>
+                            </div>
+                            <input
+                                type="text"
+                                class="input-base"
+                                placeholder="Answer option..."
+                            >
+                            <label class="radio-wrapper" title="Mark as correct">
+                                <input type="radio" name="correct-1" value="D">
+                                <span class="radio-visual"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Question Button -->
+            <button type="button" id="addQuestionBtn" class="btn-add mb-8" onclick="addQuestion()">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <path d="M12 8v8M8 12h8"/>
+                </svg>
+                Add Question
+            </button>
+
+            <!-- Submit Quiz -->
+            <button type="button" class="btn-submit" onclick="submitQuiz()">
+                Save Quiz
+            </button>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        const API_BASE = `http://${window.location.hostname}:3000`;
+        let questionCount = 1;
+
+        // ── Edit mode: detect ?edit=ID in the URL ──────────────────────────
+        const urlParams = new URLSearchParams(window.location.search);
+        const editId = urlParams.get('edit');
+
+        if (editId) {
+            // Update heading
+            document.querySelector('h1').textContent = 'Edit Quiz';
+            document.querySelector('h1 + p').textContent = 'Update your questions and save to overwrite.';
+            document.querySelector('.btn-submit').textContent = 'Save Changes';
+
+            // Load existing quiz data and prefill the form
+            fetch(`${API_BASE}/api/quizzes/${editId}/details`)
+                .then((r) => r.json())
+                .then((quiz) => {
+                    if (quiz.error) throw new Error(quiz.error);
+
+                    document.getElementById('quizTitle').value = quiz.title || '';
+
+                    // Clear the default empty panel
+                    document.getElementById('questionsContainer').innerHTML = '';
+                    questionCount = 0;
+
+                    quiz.questions.forEach((q) => {
+                        questionCount++;
+                        const panel = buildQuestionPanel(questionCount, q);
+                        document.getElementById('questionsContainer').appendChild(panel);
+                    });
+
+                    // If no questions came back, add a blank one
+                    if (questionCount === 0) addQuestion();
+                })
+                .catch((err) => {
+                    showToast('Failed to load quiz: ' + err.message, 'error');
+                });
+        }
+
+        // ── Build a question panel DOM node (used for edit prefill + addQuestion) ──
+        function buildQuestionPanel(num, q) {
+            const panel = document.createElement('div');
+            panel.className = 'question-panel p-6 mb-6';
+            panel.dataset.question = num;
+
+            const options = [
+                { cls: 'red',    val: 'A', field: 'option_a', stroke: '#ef4444',
+                  icon: `<polygon points="16,4 28,28 4,28" fill="none" stroke="#ef4444" stroke-width="2.5" stroke-linejoin="round"/>` },
+                { cls: 'blue',   val: 'B', field: 'option_b', stroke: '#3b82f6',
+                  icon: `<polygon points="16,3 29,16 16,29 3,16" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linejoin="round"/>` },
+                { cls: 'yellow', val: 'C', field: 'option_c', stroke: '#eab308',
+                  icon: `<circle cx="16" cy="16" r="13" fill="none" stroke="#eab308" stroke-width="2.5"/>` },
+                { cls: 'green',  val: 'D', field: 'option_d', stroke: '#22c55e',
+                  icon: `<rect x="5" y="5" width="22" height="22" rx="2" fill="none" stroke="#22c55e" stroke-width="2.5"/>` },
+            ];
+
+            const removeVisibility = num === 1 && !editId ? 'visibility:hidden;' : '';
+
+            panel.innerHTML = `
+                <div class="flex items-center justify-between mb-5">
+                    <h3 class="text-lg font-bold text-white flex items-center gap-3">
+                        <span class="w-9 h-9 rounded-lg bg-slate-800 flex items-center justify-center text-sm font-bold text-slate-400 border border-slate-700">${num}</span>
+                        Question
+                    </h3>
+                    <button type="button" class="btn-remove" onclick="removeQuestion(this)" style="${removeVisibility}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                        Remove Question
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Question Text</label>
+                    <textarea class="input-base" placeholder="Type your question here..." rows="2">${q ? (q.question_text || '') : ''}</textarea>
+                </div>
+                <div class="mb-5">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Time Limit</label>
+                    <select class="input-base w-48" title="Time limit for this question">
+                        <option value="10" ${q && q.time_limit == 10 ? 'selected' : ''}>10 seconds</option>
+                        <option value="20" ${q && q.time_limit == 20 ? 'selected' : ''}>20 seconds</option>
+                        <option value="30" ${(!q || q.time_limit == 30 || !q.time_limit) ? 'selected' : ''}>30 seconds</option>
+                    </select>
+                </div>
+                <div class="space-y-3">
+                    ${options.map((opt) => `
+                    <div class="answer-block ${opt.cls}">
+                        <div class="answer-icon">
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">${opt.icon}</svg>
+                        </div>
+                        <input type="text" class="input-base" placeholder="Answer option..."
+                            value="${q ? (q[opt.field] || '') : ''}" aria-label="Answer option ${opt.val}">
+                        <label class="radio-wrapper" title="Mark as correct">
+                            <input type="radio" name="correct-${num}" value="${opt.val}"
+                                ${q && q.correct_option === opt.val ? 'checked' : ''}>
+                            <span class="radio-visual"></span>
+                        </label>
+                    </div>`).join('')}
+                </div>
+            `;
+            return panel;
+        }
+
+        function addQuestion() {
+            questionCount++;
+            const panel = buildQuestionPanel(questionCount, null);
+            const container = document.getElementById('questionsContainer');
+            container.appendChild(panel);
+            panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function removeQuestion(button) {
+            const panel = button.closest('.question-panel');
+            panel.style.opacity = '0';
+            panel.style.transform = 'translateX(20px)';
+            panel.style.transition = 'all 0.3s ease';
+            setTimeout(() => {
+                panel.remove();
+                renumberQuestions();
+            }, 300);
+        }
+
+        function renumberQuestions() {
+            const panels = document.querySelectorAll('.question-panel');
+            panels.forEach((panel, index) => {
+                const num = index + 1;
+                panel.dataset.question = num;
+                const badge = panel.querySelector('h3 span');
+                if (badge) badge.textContent = num;
+                panel.querySelectorAll('input[type="radio"]').forEach((radio) => {
+                    radio.name = `correct-${num}`;
+                });
+            });
+            questionCount = panels.length;
+        }
+
+        function collectQuestions() {
+            const panels = document.querySelectorAll('.question-panel');
+            const questions = [];
+            let hasErrors = false;
+
+            panels.forEach((panel, index) => {
+                const textarea = panel.querySelector('textarea');
+                const select = panel.querySelector('select');
+                const answerInputs = panel.querySelectorAll('.answer-block .input-base');
+                const selectedRadio = panel.querySelector('input[type="radio"]:checked');
+
+                const questionText = textarea.value.trim();
+                const timeLimit = select.value;
+
+                if (!questionText) {
+                    showToast(`Question ${index + 1} needs question text.`, 'error');
+                    hasErrors = true;
+                    return;
+                }
+
+                const answers = Array.from(answerInputs).map((i) => i.value.trim());
+                if (answers.some((a) => !a)) {
+                    showToast(`Question ${index + 1} needs all 4 answers filled.`, 'error');
+                    hasErrors = true;
+                    return;
+                }
+
+                if (!selectedRadio) {
+                    showToast(`Question ${index + 1} needs a correct answer selected.`, 'error');
+                    hasErrors = true;
+                    return;
+                }
+
+                questions.push({
+                    question_text: questionText,
+                    option_a: answers[0],
+                    option_b: answers[1],
+                    option_c: answers[2],
+                    option_d: answers[3],
+                    correct_option: selectedRadio.value,
+                    time_limit: parseInt(timeLimit)
+                });
+            });
+
+            return hasErrors ? null : questions;
+        }
+
+        function submitQuiz() {
+            const title = document.getElementById('quizTitle').value.trim();
+            if (!title) { showToast('Please enter a quiz title.', 'error'); return; }
+
+            const questions = collectQuestions();
+            if (!questions) return;
+
+            const payload = { title, description: '', questions };
+
+            if (editId) {
+                // ── Edit mode: PUT to update endpoint ──
+                fetch(`${API_BASE}/api/quizzes/${editId}/update`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) throw new Error(data.error || 'Failed to update quiz.');
+                    showToast(`Quiz "${title}" updated with ${data.questionsCount} question(s).`, 'success');
+                    setTimeout(() => { window.location.href = 'teacher-dashboard.html'; }, 1500);
+                })
+                .catch((err) => {
+                    console.error('Update error:', err);
+                    showToast('Could not update quiz: ' + err.message, 'error');
+                });
+            } else {
+                // ── Create mode: POST to create endpoint ──
+                fetch(`${API_BASE}/api/quizzes`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+                .then(({ ok, data }) => {
+                    if (!ok) throw new Error(data.error || 'Failed to save quiz.');
+                    showToast(`Quiz "${title}" created with ${data.questionsCount} question(s).`, 'success');
+                    setTimeout(() => { window.location.href = 'teacher-dashboard.html'; }, 1500);
+                })
+                .catch((err) => {
+                    console.error('API error:', err);
+                    showToast('Could not save quiz. Is the backend running on port 3000?', 'error');
+                });
+            }
+        }
+
+        function showToast(message, type) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+            setTimeout(() => { toast.className = 'toast'; }, 3000);
+        }
+    </script>
+</body>
+</html>

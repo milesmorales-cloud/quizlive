@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Statistics - QuizLive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --slate-950: #020617;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-400: #94a3b8;
+            --slate-300: #cbd5e1;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+        }
+
+        body {
+            background: var(--slate-950);
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        .sidebar {
+            background: var(--slate-900);
+            border-right: 1px solid var(--slate-800);
+            height: 100vh;
+            position: sticky;
+            top: 0;
+        }
+
+        .sidebar-link {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            color: var(--slate-400);
+            font-weight: 500;
+            font-size: 0.9375rem;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .sidebar-link:hover {
+            background: var(--slate-800);
+            color: var(--slate-300);
+        }
+
+        .sidebar-link.active {
+            background: rgba(6, 182, 212, 0.1);
+            color: var(--accent-cyan);
+            border: 1px solid rgba(6, 182, 212, 0.2);
+        }
+
+        .stat-card {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-800);
+            border-radius: 1.25rem;
+            padding: 1.5rem;
+        }
+
+        .stat-row {
+            background: var(--slate-900);
+            border: 1px solid var(--slate-800);
+            border-radius: 1rem;
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .stat-row:hover {
+            border-color: var(--slate-700);
+            background: var(--slate-800);
+            transform: translateY(-2px);
+        }
+
+        .btn-export {
+            background: linear-gradient(135deg, var(--accent-cyan), var(--accent-emerald));
+            color: white;
+            border: none;
+            border-radius: 0.75rem;
+            padding: 0.625rem 1.25rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-export:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px -8px rgba(6, 182, 212, 0.5);
+        }
+
+        .skeleton {
+            background: var(--slate-800);
+            border-radius: 1rem;
+            height: 64px;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.5; }
+            50% { opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                height: auto;
+                position: static;
+                border-right: none;
+                border-bottom: 1px solid var(--slate-800);
+            }
+        }
+    </style>
+    <script>
+        // Auth guard — must be first thing that runs
+        (function() {
+            if (!localStorage.getItem('teacherToken')) {
+                window.location.replace('login.html');
+            }
+        })();
+    </script>
+</head>
+<body>
+    <div class="flex flex-col md:flex-row">
+        <!-- Sidebar -->
+        <aside class="sidebar w-full md:w-64 flex-shrink-0 p-4 flex md:flex-col gap-2">
+            <div class="flex items-center gap-2 px-2 mb-6">
+                <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </div>
+                <span class="font-bold text-white text-lg">QuizLive</span>
+            </div>
+
+            <nav class="flex md:flex-col gap-1">
+                <a href="#" class="sidebar-link active">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 3v18h18"/>
+                        <path d="M18 17V9M13 17V5M8 17v-3"/>
+                    </svg>
+                    Statistics
+                </a>
+                <a href="teacher-dashboard.html" class="sidebar-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="3" width="7" height="9" rx="1"/>
+                        <rect x="14" y="3" width="7" height="5" rx="1"/>
+                        <rect x="14" y="12" width="7" height="9" rx="1"/>
+                        <rect x="3" y="16" width="7" height="5" rx="1"/>
+                    </svg>
+                    Dashboard
+                </a>
+                <a href="create-quiz.html" class="sidebar-link">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M12 8v8M8 12h8"/>
+                    </svg>
+                    Create Quiz
+                </a>
+            </nav>
+
+            <div class="mt-auto pt-6 hidden md:block">
+                <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50 border border-slate-700">
+                    <div class="w-10 h-10 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center text-white font-bold">T</div>
+                    <div>
+                        <p class="text-sm font-semibold text-white">Teacher</p>
+                        <p class="text-xs text-slate-500">Online</p>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 p-6 md:p-10">
+            <div class="max-w-5xl mx-auto" id="app">
+                <!-- Rendered by JS -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = `http://${window.location.hostname}:3000`;
+        const app = document.getElementById('app');
+
+        // Parse query params: ?game=<id> (detail view) or ?quiz=<id> (filter list)
+        const params = new URLSearchParams(window.location.search);
+        const gameId = params.get('game');
+        const quizId = params.get('quiz');
+
+        const esc = (v) => String(v ?? '').replace(/[&<>"']/g,
+            (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+        function fmtDate(iso) {
+            if (!iso) return '—';
+            return new Date(iso).toLocaleString('en-US', {
+                month: 'short', day: 'numeric', year: 'numeric',
+                hour: 'numeric', minute: '2-digit'
+            });
+        }
+
+        async function api(path) {
+            const res = await fetch(`${API_BASE}${path}`);
+            if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+            return res.json();
+        }
+
+        // ============================================================
+        // Detail view: statistics.html?game=<id>
+        // ============================================================
+        async function renderDetail() {
+            app.innerHTML = '<div class="skeleton"></div>'.repeat(4);
+            let data;
+            try {
+                data = await api(`/api/stats/game/${gameId}`);
+            } catch (err) {
+                app.innerHTML = `<p class="text-slate-400 text-center py-16">Couldn't load game stats: ${esc(err.message)}</p>`;
+                return;
+            }
+
+            const g = data.game;
+            const questionCells = data.questions.map((q, i) => `<th class="px-3 py-2 text-xs font-bold text-slate-400 uppercase tracking-wider min-w-[110px]">
+                Q${i + 1}${q.correct_option ? ` <span class="text-emerald-400">[${esc(q.correct_option)}]</span>` : ''}</th>`).join('');
+
+            const rows = data.players.map((p) => {
+                const byQ = {};
+                (p.answers || []).forEach((a) => { byQ[a.questionIndex] = a; });
+
+                const cells = data.questions.map((_, i) => {
+                    const a = byQ[i];
+                    if (!a || a.option === null) {
+                        return `<td class="px-3 py-2 text-center text-slate-600 font-semibold">—</td>`;
+                    }
+                    const mark = a.isCorrect
+                        ? `<span class="text-emerald-400">✓</span>`
+                        : `<span class="text-red-400">✗</span>`;
+                    const bg = a.isCorrect ? 'bg-emerald-500/10' : 'bg-red-500/10';
+                    return `<td class="px-3 py-2 text-center ${bg} rounded-lg">
+                        ${mark} <span class="text-slate-300 font-semibold">${esc(a.option)}</span>
+                        <span class="text-[11px] text-slate-500">(${a.points ?? 0})</span>
+                    </td>`;
+                }).join('');
+
+                const playerRow = `<div class="flex items-center gap-3">
+                    <span class="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-emerald-500 flex items-center justify-center text-white font-bold text-sm">${esc((p.username || '?').charAt(0).toUpperCase())}</span>
+                    <span class="font-semibold text-white">${esc(p.username)}</span>
+                </div>`;
+
+                return `<tr class="border-b border-slate-800 hover:bg-slate-800/40">
+                    <td class="px-3 py-3">${playerRow}</td>
+                    <td class="px-3 py-3 text-center text-white font-extrabold tabular-nums">${p.score}</td>
+                    <td class="px-3 py-3 text-center text-emerald-400 font-semibold tabular-nums">${p.correct}</td>
+                    <td class="px-3 py-3 text-center text-red-400 font-semibold tabular-nums">${p.wrong}</td>
+                    <td class="px-3 py-3 text-center text-slate-500 font-semibold tabular-nums">${p.unanswered}</td>
+                    ${cells}
+                </tr>`;
+            }).join('');
+
+            app.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+                    <div>
+                        <a href="statistics.html${quizId ? `?quiz=${quizId}` : ''}" class="inline-flex items-center gap-1.5 text-sm text-slate-400 hover:text-cyan-400 mb-2">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                            All games
+                        </a>
+                        <h1 class="text-2xl md:text-3xl font-extrabold text-white tracking-tight">${esc(g.quizTitle)}</h1>
+                        <p class="text-slate-400 mt-1">PIN ${esc(g.pin)} · Played ${fmtDate(g.started_at)}</p>
+                    </div>
+                    <button class="btn-export self-start" onclick="exportCsv(${g.id})">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export CSV
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                        <thead>
+                            <tr class="bg-slate-800/60">
+                                <th class="px-3 py-3 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">Player</th>
+                                <th class="px-3 py-2 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">Pts</th>
+                                <th class="px-3 py-2 text-center text-xs font-bold text-emerald-500/70 uppercase tracking-wider">✓</th>
+                                <th class="px-3 py-2 text-center text-xs font-bold text-red-500/70 uppercase tracking-wider">✗</th>
+                                <th class="px-3 py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">—</th>
+                                ${questionCells}
+                            </tr>
+                        </thead>
+                        <tbody>${rows || '<tr><td colspan="99" class="text-center text-slate-500 py-8">No player results recorded.</td></tr>'}</tbody>
+                    </table>
+                </div>
+
+                <p class="text-xs text-slate-500 mt-4">Cells show the option each player tapped (under their shuffled layout) with points earned. [A]/[B] headers mark the canonical correct option.</p>
+            `;
+        }
+
+        // ============================================================
+        // Summary view: statistics.html (optionally filtered by ?quiz=)
+        // ============================================================
+        async function renderSummary() {
+            app.innerHTML = '<div class="skeleton"></div>'.repeat(4);
+            let stats;
+            try {
+                stats = await api('/api/stats');
+            } catch (err) {
+                app.innerHTML = `<p class="text-slate-400 text-center py-16">Couldn't load statistics: ${esc(err.message)}</p>`;
+                return;
+            }
+
+            let games = stats.games || [];
+            if (quizId) {
+                games = games.filter((g) => String(g.quiz_id) === String(quizId));
+            }
+
+            app.innerHTML = `
+                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-8">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-white tracking-tight">Game Statistics</h1>
+                        <p class="text-slate-400 mt-1">Every hosted game, persisted with per-player answers.</p>
+                    </div>
+                    <div class="flex gap-3">
+                        <div class="stat-card flex-1 min-w-[120px]">
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Games</p>
+                            <p class="text-3xl font-extrabold text-white mt-1 tabular-nums">${stats.totals?.games ?? 0}</p>
+                        </div>
+                        <div class="stat-card flex-1 min-w-[120px]">
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Players</p>
+                            <p class="text-3xl font-extrabold text-white mt-1 tabular-nums">${stats.totals?.players ?? 0}</p>
+                        </div>
+                        <div class="stat-card flex-1 min-w-[120px]">
+                            <p class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Avg Score</p>
+                            <p class="text-3xl font-extrabold text-white mt-1 tabular-nums">${stats.totals?.avgScore ?? 0}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <h2 class="font-bold text-white text-lg mb-4">Completed Games</h2>
+                ${games.length === 0
+                    ? '<div class="stat-row !flex-col !justify-center py-10 text-slate-500">No completed games yet. Host a quiz and finish it to see statistics here.</div>'
+                    : games.map((g) => `
+                        <a class="stat-row mb-3" href="statistics.html?game=${g.id}">
+                            <div class="flex items-center gap-4 min-w-0">
+                                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-emerald-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cyan)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                                        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                                    </svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="font-semibold text-white truncate">${esc(g.quizTitle)}</p>
+                                    <p class="text-xs text-slate-400">PIN ${esc(g.pin)} · ${fmtDate(g.started_at)}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-5 flex-shrink-0">
+                                <div class="text-right">
+                                    <p class="text-lg font-extrabold text-white tabular-nums">${g.avg_score}</p>
+                                    <p class="text-[11px] text-slate-500">avg score</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-lg font-extrabold text-cyan-400 tabular-nums">${g.total_players}</p>
+                                    <p class="text-[11px] text-slate-500">players</p>
+                                </div>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--slate-500)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                            </div>
+                        </a>
+                    `).join('')}
+            `;
+        }
+
+        // Trigger the CSV file download via the export endpoint.
+        function exportCsv(gameId) {
+            window.location.href = `${API_BASE}/api/stats/game/${gameId}/export`;
+        }
+
+        if (gameId) {
+            renderDetail();
+        } else {
+            // ?quiz=<id> context: show the filtered list behind a helpful header.
+            renderSummary().then(() => {
+                if (quizId) {
+                    fetch(`${API_BASE}/api/quizzes/${quizId}`)
+                        .then((r) => r.json())
+                        .then((quiz) => {
+                            if (!quiz || quiz.error) return;
+                            const h = document.querySelector('h1');
+                            if (h) h.textContent = `${quiz.title} — Statistics`;
+                        })
+                        .catch(() => {});
+                }
+            });
+        }
+    </script>
+</body>
+</html>

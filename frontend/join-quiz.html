@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-store">
+    <title>Join a Game - QuizLive</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Inter', system-ui, sans-serif; }
+
+        :root {
+            --slate-950: #020617;
+            --slate-900: #0f172a;
+            --slate-800: #1e293b;
+            --slate-700: #334155;
+            --slate-600: #475569;
+            --slate-500: #64748b;
+            --slate-400: #94a3b8;
+            --slate-300: #cbd5e1;
+            --accent-violet: #8b5cf6;
+            --accent-fuchsia: #d946ef;
+            --accent-amber: #f59e0b;
+        }
+
+        body {
+            background: radial-gradient(1200px 600px at 50% -10%, rgba(139, 92, 246, 0.15), transparent 60%),
+                        radial-gradient(1000px 500px at 90% 110%, rgba(217, 70, 239, 0.1), transparent 60%),
+                        var(--slate-950);
+            min-height: 100vh;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        /* Phone Frame */
+        .phone {
+            width: 100%;
+            max-width: 400px;
+            background: var(--slate-900);
+            border: 1px solid var(--slate-800);
+            border-radius: 2.5rem;
+            padding: 2rem 1.5rem;
+            box-shadow: 0 30px 80px -20px rgba(0, 0, 0, 0.8);
+            position: relative;
+        }
+
+        .phone-notch {
+            width: 120px;
+            height: 28px;
+            background: var(--slate-950);
+            border-radius: 9999px;
+            margin: 0 auto 2rem;
+        }
+
+        .phone-home {
+            width: 44px;
+            height: 4px;
+            background: var(--slate-700);
+            border-radius: 9999px;
+            margin: 1.5rem auto 0;
+        }
+
+        .join-input {
+            width: 100%;
+            background: var(--slate-800);
+            border: 2px solid var(--slate-700);
+            border-radius: 1.25rem;
+            padding: 1.25rem 1.5rem;
+            color: white;
+            font-size: 1.25rem;
+            font-weight: 700;
+            text-align: center;
+            outline: none;
+            transition: all 0.3s ease;
+            letter-spacing: 0.1em;
+        }
+
+        .join-input::placeholder {
+            color: var(--slate-600);
+            font-weight: 500;
+            letter-spacing: normal;
+        }
+
+        .join-input:focus {
+            border-color: var(--accent-violet);
+            box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.2);
+        }
+
+        .join-input.pin {
+            font-size: 2rem;
+            letter-spacing: 0.4em;
+        }
+
+        .join-input.pin::placeholder {
+            font-size: 1.5rem;
+        }
+
+        .join-input.error {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.2);
+        }
+
+        .btn-enter {
+            width: 100%;
+            background: linear-gradient(135deg, var(--accent-violet), var(--accent-fuchsia));
+            color: white;
+            border: none;
+            border-radius: 1.5rem;
+            padding: 1.5rem;
+            font-size: 1.375rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            letter-spacing: 0.02em;
+            box-shadow: 0 15px 40px -12px rgba(139, 92, 246, 0.6);
+        }
+
+        .btn-enter:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 20px 50px -12px rgba(139, 92, 246, 0.7);
+        }
+
+        .btn-enter:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        .btn-enter:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            width: 22px;
+            height: 22px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .shake {
+            animation: shake 0.4s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-5px); }
+            80% { transform: translateX(5px); }
+        }
+
+        .pulse {
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.85); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Phone Frame -->
+    <div class="phone">
+        <div class="phone-notch"></div>
+
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center gap-2 mb-4">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    </svg>
+                </div>
+                <span class="text-2xl font-extrabold text-white tracking-tight">QuizLive</span>
+            </div>
+            <h1 class="text-2xl font-extrabold text-white mb-1 tracking-tight">Join a Game</h1>
+            <p class="text-slate-400 text-sm">Enter the PIN from your teacher to get started</p>
+        </div>
+
+        <!-- Join Form -->
+        <form id="joinForm" onsubmit="handleJoin(event)" class="space-y-6">
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">Game PIN</label>
+                <input
+                    type="text"
+                    id="pinInput"
+                    class="join-input pin"
+                    placeholder="000000"
+                    maxlength="6"
+                    inputmode="numeric"
+                    pattern="[0-9]*"
+                    autocomplete="off"
+                    oninput="handlePinInput(this)"
+                >
+                <!-- Shown when the PIN arrived pre-filled via the ?pin= URL (QR scan) -->
+                <p id="pinAutofillBadge" class="mt-2 text-xs font-semibold text-emerald-500 hidden">
+                    ✓ PIN auto-filled from QR
+                </p>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">Your Nickname</label>
+                <input
+                    type="text"
+                    id="nicknameInput"
+                    class="join-input"
+                    placeholder="Player name"
+                    maxlength="15"
+                    autocomplete="nickname"
+                    oninput="handleNicknameInput(this)"
+                >
+            </div>
+
+            <button type="submit" id="enterBtn" class="btn-enter" disabled>
+                <span id="btnText">Enter Lobby</span>
+            </button>
+        </form>
+
+        <!-- Post-join confirmation: shown after the server accepts the player -->
+        <div id="joinedScreen" class="hidden text-center">
+            <div class="mx-auto mb-6 w-20 h-20 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-500 flex items-center justify-center" style="box-shadow: 0 0 0 8px rgba(16,185,129,0.15), 0 20px 50px -12px rgba(16,185,129,0.5);">
+                <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+            </div>
+            <h2 class="text-2xl font-extrabold text-white mb-2 tracking-tight" id="joinedTitle">You're in!</h2>
+            <p class="text-slate-300" id="joinedMessage">You joined the lobby. Wait for the host to start a live game…</p>
+            <p class="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-slate-800 border border-slate-700 text-slate-300 text-sm font-medium">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 pulse"></span>
+                Waiting for the host
+            </p>
+        </div>
+
+        <div class="phone-home"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script src="js/websocket.js"></script>
+    <script src="js/app.js"></script>
+
+    <script>
+        const pinInput = document.getElementById('pinInput');
+        const nicknameInput = document.getElementById('nicknameInput');
+        const enterBtn = document.getElementById('enterBtn');
+        const btnText = document.getElementById('btnText');
+
+        // Pre-fill PIN from URL parameter ?pin=XXXXXX
+        (function prefillPinFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const urlPin = params.get('pin');
+            if (urlPin && /^\d{6}$/.test(urlPin)) {
+                pinInput.value = urlPin;
+                pinInput.readOnly = true;
+                pinInput.style.opacity = '0.7';
+                pinInput.style.cursor = 'not-allowed';
+                // Show the "auto-filled" confirmation so it's obvious no
+                // manual PIN entry is needed.
+                const badge = document.getElementById('pinAutofillBadge');
+                if (badge) badge.classList.remove('hidden');
+                // Focus nickname so the player only needs to type their name
+                setTimeout(() => nicknameInput.focus(), 50);
+                updateButtonState();
+            }
+        })();
+
+        function handlePinInput(input) {
+            // Strip non-digits, limit to 6
+            input.value = input.value.replace(/\D/g, '').slice(0, 6);
+            input.classList.remove('error', 'shake');
+            updateButtonState();
+        }
+
+        function handleNicknameInput(input) {
+            input.classList.remove('error', 'shake');
+            updateButtonState();
+        }
+
+        function updateButtonState() {
+            const pinValid = pinInput.value.length === 6;
+            const nameValid = nicknameInput.value.trim().length >= 2;
+            enterBtn.disabled = !(pinValid && nameValid);
+        }
+
+        function shake(element) {
+            element.classList.add('shake');
+            setTimeout(() => element.classList.remove('shake'), 400);
+        }
+
+        function markError(input) {
+            input.classList.add('error', 'shake');
+            setTimeout(() => input.classList.remove('shake'), 400);
+        }
+
+        function handleJoin(event) {
+            event.preventDefault();
+
+            const pin = pinInput.value;
+            const nickname = nicknameInput.value.trim();
+
+            if (pin.length !== 6) {
+                markError(pinInput);
+                return;
+            }
+
+            if (nickname.length < 2) {
+                markError(nicknameInput);
+                return;
+            }
+
+            // Joining state
+            btnText.innerHTML = '<span class="spinner"></span>';
+            enterBtn.disabled = true;
+
+            // Dispatch the real 'player-join-lobby' WebSocket event via app.js.
+            // app.js now answers a successful join with the 'quizlive:joined'
+            // DOM event (instead of redirecting), which we handle below to show
+            // the "You're in — wait for the host" screen. Failures still alert.
+            joinLobby(pin, nickname);
+        }
+
+        // Server accepted the join → swap the form for the confirmation screen.
+        // The player stays here until the host starts the game.
+        document.addEventListener('quizlive:joined', () => {
+            document.getElementById('joinForm').classList.add('hidden');
+            document.getElementById('joinedScreen').classList.remove('hidden');
+            enterBtn.disabled = false;
+            btnText.textContent = 'Enter Lobby';
+        });
+
+        // Host started the game → send the player into the live arena. A QR
+        // joiner never visits waiting-room.html, so this page carries the
+        // game-started listener itself.
+        socket.on('game-started', () => {
+            window.location.href = 'live-quiz.html';
+        });
+
+        // Enable on load
+        updateButtonState();
+    </script>
+</body>
+</html>
