@@ -667,30 +667,46 @@ io.on('connection', (socket) => {
             return fail('Game session not found.');
         }
 
-        const cached = session.rejoinCache[rejoinToken];
+        // Navigation race: a player's fresh page socket can connect BEFORE the
+        // server reaps the old socket, so the disconnect handler has not yet
+        // snapshotted them into rejoinCache — they are still in session.players
+        // under their old socket id. Re-bind that live entry to this socket
+        // (mirrors 'host-reclaim-lobby') instead of failing the rejoin.
+        let player = session.players.find(
+            (p) => !p.isHost && p.rejoinToken === rejoinToken
+        );
 
-        if (!cached) {
-            return fail('Rejoin token invalid or expired.');
+        if (player) {
+            // Re-bind in place; the old socket's eventual disconnect finds no
+            // matching player id and leaves the roster untouched (the same
+            // tolerance the host path gets from the [HostNav] case).
+            player.id = socket.id;
+        } else {
+            const cached = session.rejoinCache[rejoinToken];
+
+            if (!cached) {
+                return fail('Rejoin token invalid or expired.');
+            }
+
+            // A rejoin token is single-use: consuming it here stops a second stale
+            // page load from resurrecting an older copy of the same player.
+            delete session.rejoinCache[rejoinToken];
+
+            // Restore the player with a clean socket.id and their saved state. The
+            // rejoinToken is kept on the object so a later disconnect re-snapshots
+            // them under the same token.
+            player = {
+                id: socket.id,
+                username: cached.username,
+                score: cached.score,
+                isHost: false,
+                answeredQuestionId: cached.answeredQuestionId,
+                answers: cached.answers || [],
+                shuffleMaps: cached.shuffleMaps || {},
+                rejoinToken
+            };
+            session.players.push(player);
         }
-
-        // A rejoin token is single-use: consuming it here stops a second stale
-        // page load from resurrecting an older copy of the same player.
-        delete session.rejoinCache[rejoinToken];
-
-        // Restore the player with a clean socket.id and their saved state. The
-        // rejoinToken is kept on the object so a later disconnect re-snapshots
-        // them under the same token.
-        const player = {
-            id: socket.id,
-            username: cached.username,
-            score: cached.score,
-            isHost: false,
-            answeredQuestionId: cached.answeredQuestionId,
-            answers: cached.answers || [],
-            shuffleMaps: cached.shuffleMaps || {},
-            rejoinToken
-        };
-        session.players.push(player);
         socket.join(pin);
 
         console.log(`${player.username} rejoined lobby ${pin}`);

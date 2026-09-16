@@ -404,6 +404,12 @@
         });
 
         socket.on('next-question', (data) => {
+            // The reclaim replay delivers the live question as 'next-question'
+            // (never 'game-started'), so the arena must be revealed here too.
+            waitingOverlay.classList.add('hidden');
+            hostScreen.classList.remove('hidden');
+            hostScreen.classList.add('flex');
+
             currentQuestion = data.question;
             totalQuestions = data.totalQuestions;
             headerQuizTitle.textContent = data.quizTitle || 'Quiz';
