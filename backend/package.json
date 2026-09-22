@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test": "node _smoke.mjs"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
@@ -24,5 +25,8 @@
   "license": "MIT",
   "allowScripts": {
     "bcrypt@5.1.1": true
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.3"
   }
 }

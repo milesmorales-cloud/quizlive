@@ -4,8 +4,12 @@
 // ============================================================
 import { spawn } from 'child_process';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
 const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const io = require('socket.io-client');
 
 const PORT = 3299;          // use an unlikely port to avoid collisions
@@ -26,7 +30,7 @@ function ko(label, detail = '') {
 async function startServer() {
   return new Promise((resolve, reject) => {
     serverProc = spawn(process.execPath, ['server.js'], {
-      cwd: 'C:/Users/MWANGA/quizlive/backend',
+      cwd: __dirname,
       env: { ...process.env, PORT: String(PORT) },
       stdio: ['ignore', 'pipe', 'pipe']
     });
