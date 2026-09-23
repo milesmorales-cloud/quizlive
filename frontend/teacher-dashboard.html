@@ -318,7 +318,7 @@
         // ============================================================
 
         const quizGrid = document.getElementById('quizGrid');
-        const API_BASE = `http://${window.location.hostname}:3000`;
+        const API_BASE = window.location.origin;
 
         function showLoading() {
             quizGrid.innerHTML = `

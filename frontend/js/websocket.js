@@ -11,14 +11,12 @@
 (function () {
     'use strict';
 
-    // Resolve the backend URL from the browser's current hostname and port
-    // so phones on the same Wi-Fi automatically reach the server. Both the
-    // API and WebSocket live on port 3000 (same origin as the page).
-    const BACKEND_URL = `http://${window.location.hostname}:3000`;
+    // Use the same origin that served this page.
+    // This works for local development, LAN access, and cloud deployment.
+    const BACKEND_URL = window.location.origin;
 
     // Frontend origin used for CORS allow-listing on the server side.
-    // Everything is on port 3000 now, so the origin is always that port.
-    const FRONTEND_ORIGIN = `http://${window.location.hostname}:3000`;
+    const FRONTEND_ORIGIN = window.location.origin;
 
     // Connect to the backend Socket.IO server
     const socket = io(BACKEND_URL, {

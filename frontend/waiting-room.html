@@ -282,25 +282,30 @@
 
         async function resolveJoinUrl() {
             const currentPin = localStorage.getItem('quizlive_pin');
-            // The whole app runs on port 3000 — the QR join link is always
-            // http://<hostname>:3000/join-quiz.html?pin=<pin>. Hostname is
-            // dynamic so scanning works whether the teacher opened the page
-            // via localhost:3000 or 192.168.x.x:3000, and never hardcodes an IP.
+
             const host = window.location.hostname;
             const isLocal = /^(localhost|127\.0\.0\.1|::1)$/i.test(host);
-            let base = host;
 
-            if (isLocal) {
-                // Localhost on the PC → use the LAN IP the backend detected,
-                // otherwise students' phones won't reach the page.
-                try {
-                    const ipRes = await fetch(`${BACKEND_URL}/api/network-ip`);
-                    const ipData = await ipRes.json();
-                    if (ipData.ip) base = ipData.ip;
-                } catch (_) { /* keep hostname as fallback */ }
+            if (!isLocal) {
+                // When deployed or accessed through a LAN hostname/IP,
+                // use the exact origin the browser is currently using.
+                return `${window.location.origin}/join-quiz.html?pin=${currentPin}`;
             }
 
-            return `http://${base}:3000/join-quiz.html?pin=${currentPin}`;
+            // Localhost on the teacher's PC → use the LAN IP so phones
+            // on the same Wi-Fi can reach QuizLive.
+            try {
+                const ipRes = await fetch(`${BACKEND_URL}/api/network-ip`);
+                const ipData = await ipRes.json();
+
+                if (ipData.ip) {
+                    return `http://${ipData.ip}:3000/join-quiz.html?pin=${currentPin}`;
+                }
+            } catch (_) {
+                // Fall back to the current origin if LAN IP detection fails.
+            }
+
+            return `${window.location.origin}/join-quiz.html?pin=${currentPin}`;
         }
 
         if (isHost && pin) {
