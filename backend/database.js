@@ -43,6 +43,7 @@ function initTables() {
             option_c TEXT,
             option_d TEXT,
             correct_option TEXT NOT NULL CHECK(correct_option IN ('A', 'B', 'C', 'D')),
+            question_type TEXT NOT NULL DEFAULT 'multiple_choice',
             time_limit INTEGER DEFAULT 30,
             FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
         )
@@ -141,8 +142,8 @@ function insertQuiz(quiz) {
 function insertQuestions(quizId, questions) {
     return new Promise((resolve, reject) => {
         const stmt = db.prepare(`
-            INSERT INTO questions (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, time_limit)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO questions (quiz_id, question_text, option_a, option_b, option_c, option_d, correct_option, question_type, time_limit)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         `);
 
         let completed = 0;
@@ -162,6 +163,7 @@ function insertQuestions(quizId, questions) {
                 q.option_c || null,
                 q.option_d || null,
                 q.correct_option,
+                q.question_type || 'multiple_choice',
                 q.time_limit || 30,
                 (err) => {
                     if (err) {

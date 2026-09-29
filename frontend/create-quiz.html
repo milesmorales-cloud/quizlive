@@ -359,10 +359,19 @@
                         ></textarea>
                     </div>
 
+                    <!-- Question Type -->
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-slate-400 mb-2">Question Type</label>
+                        <select class="input-base question-type w-56" title="Type of question" onchange="updateQuestionType(this.closest('.question-panel'))">
+                            <option value="multiple_choice" selected>Multiple Choice</option>
+                            <option value="true_false">True / False</option>
+                        </select>
+                    </div>
+
                     <!-- Time Limit -->
                     <div class="mb-5">
                         <label class="block text-sm font-medium text-slate-400 mb-2">Time Limit</label>
-                        <select class="input-base w-48">
+                        <select class="input-base w-48" title="Time limit for this question">
                             <option value="10">10 seconds</option>
                             <option value="20">20 seconds</option>
                             <option value="30" selected>30 seconds</option>
@@ -469,6 +478,9 @@
         const API_BASE = window.location.origin;
         let questionCount = 1;
 
+        // Apply initial visibility for the static question panel
+        updateQuestionType(document.querySelector('.question-panel'));
+
         // ── Edit mode: detect ?edit=ID in the URL ──────────────────────────
         const urlParams = new URLSearchParams(window.location.search);
         const editId = urlParams.get('edit');
@@ -539,6 +551,15 @@
                     <label class="block text-sm font-medium text-slate-400 mb-2">Question Text</label>
                     <textarea class="input-base" placeholder="Type your question here..." rows="2">${q ? (q.question_text || '') : ''}</textarea>
                 </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Question Type</label>
+                    <select class="input-base question-type w-56" title="Type of question">
+                        <option value="multiple_choice" ${(!q || q.question_type === 'multiple_choice' || !q.question_type) ? 'selected' : ''}>Multiple Choice</option>
+                        <option value="true_false" ${q && q.question_type === 'true_false' ? 'selected' : ''}>True / False</option>
+                    </select>
+                </div>
+
                 <div class="mb-5">
                     <label class="block text-sm font-medium text-slate-400 mb-2">Time Limit</label>
                     <select class="input-base w-48" title="Time limit for this question">
@@ -563,7 +584,28 @@
                     </div>`).join('')}
                 </div>
             `;
+            panel.querySelector('.question-type').addEventListener('change', () => {
+                updateQuestionType(panel);
+            });
+
+            updateQuestionType(panel);
             return panel;
+        }
+
+        function updateQuestionType(panel) {
+            const typeSelect = panel.querySelector('.question-type');
+            const answerBlocks = panel.querySelectorAll('.answer-block');
+
+            if (typeSelect.value === 'true_false') {
+                answerBlocks[0].querySelector('input[type="text"]').value = 'True';
+                answerBlocks[1].querySelector('input[type="text"]').value = 'False';
+
+                answerBlocks[2].style.display = 'none';
+                answerBlocks[3].style.display = 'none';
+            } else {
+                answerBlocks[2].style.display = '';
+                answerBlocks[3].style.display = '';
+            }
         }
 
         function addQuestion() {
@@ -606,12 +648,14 @@
 
             panels.forEach((panel, index) => {
                 const textarea = panel.querySelector('textarea');
-                const select = panel.querySelector('select');
-                const answerInputs = panel.querySelectorAll('.answer-block .input-base');
+                const timeSelect = panel.querySelector('select[title="Time limit for this question"]');
+                const typeSelect = panel.querySelector('.question-type');
+                const answerInputs = Array.from(panel.querySelectorAll('.answer-block')).filter((block) => block.style.display !== 'none').map((block) => block.querySelector('.input-base'));
                 const selectedRadio = panel.querySelector('input[type="radio"]:checked');
 
                 const questionText = textarea.value.trim();
-                const timeLimit = select.value;
+                const timeLimit = timeSelect.value;
+                const questionType = typeSelect.value;
 
                 if (!questionText) {
                     showToast(`Question ${index + 1} needs question text.`, 'error');
@@ -621,7 +665,7 @@
 
                 const answers = Array.from(answerInputs).map((i) => i.value.trim());
                 if (answers.some((a) => !a)) {
-                    showToast(`Question ${index + 1} needs all 4 answers filled.`, 'error');
+                    showToast(`Question ${index + 1} needs all visible answers filled.`, 'error');
                     hasErrors = true;
                     return;
                 }
@@ -634,11 +678,12 @@
 
                 questions.push({
                     question_text: questionText,
-                    option_a: answers[0],
-                    option_b: answers[1],
-                    option_c: answers[2],
-                    option_d: answers[3],
+                    option_a: answers[0] || null,
+                    option_b: answers[1] || null,
+                    option_c: answers[2] || null,
+                    option_d: answers[3] || null,
                     correct_option: selectedRadio.value,
+                    question_type: questionType,
                     time_limit: parseInt(timeLimit)
                 });
             });
