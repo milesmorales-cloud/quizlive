@@ -73,6 +73,12 @@ function initTables() {
             console.error('Error creating questions table:', err.message);
         } else {
             console.log('Questions table ready.');
+
+            // Migrate existing table: add question_type if it doesn't exist yet
+            db.run(
+                `ALTER TABLE questions ADD COLUMN question_type TEXT NOT NULL DEFAULT 'multiple_choice'`,
+                () => {}
+            );
         }
     });
 

@@ -419,14 +419,19 @@
 
             hostQuestionText.textContent = currentQuestion.text;
 
-            // Show options preview
+            // Show options preview. True/False questions only have two options,
+            // so C and D are hidden here too; visibility is recomputed on every
+            // question so a multiple-choice → true_false → multiple-choice quiz
+            // never leaves a stale hidden option behind. The host always sees the
+            // canonical order, which never affects student scoring.
+            const isTrueFalse = currentQuestion.questionType === 'true_false';
             const letters = ['A', 'B', 'C', 'D'];
             letters.forEach((L) => {
                 const text = currentQuestion.options[L];
                 const el = document.getElementById(`opt${L}`);
                 if (el) {
                     el.textContent = text || '–';
-                    el.parentElement.classList.remove('hidden');
+                    el.parentElement.classList.toggle('hidden', isTrueFalse && (L === 'C' || L === 'D'));
                 }
             });
             hostOptionsPreview.classList.remove('hidden');

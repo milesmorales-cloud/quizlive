@@ -246,6 +246,10 @@
             // Fill each pad with the option text for THIS student's shuffled
             // layout. The server sends options keyed by the displayed letter,
             // so pad A shows options.A regardless of where the real answer sits.
+            // True/False questions only have two options, so pads C and D are
+            // hidden; the hidden state is recomputed on every question so a
+            // multiple-choice → true_false → multiple-choice quiz resets cleanly.
+            const isTrueFalse = currentQuestion.questionType === 'true_false';
             document.querySelectorAll('.answer-pad').forEach((pad) => {
                 const letter = pad.dataset.letter;
                 const textEl = pad.querySelector('.pad-option');
@@ -254,6 +258,7 @@
                     textEl.textContent = options[letter] && options[letter].trim() ? options[letter] : '—';
                 }
                 pad.classList.remove('disabled', 'selected');
+                pad.classList.toggle('hidden', isTrueFalse && (letter === 'C' || letter === 'D'));
             });
         });
 

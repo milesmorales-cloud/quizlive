@@ -168,14 +168,28 @@ function calculatePoints(timeLimit, remainingSeconds) {
     return Math.max(minPoints, Math.round(maxPoints * ratio));
 }
 
+// True/False questions only ever expose two options, so their canonical set is
+// ['A','B'] where A = "True" and B = "False". Anything else keeps the full
+// four-option multiple-choice set.
+function isTrueFalseQuestion(question) {
+    return !!(question && question.question_type === 'true_false');
+}
+
+// The canonical option letters a given question type is allowed to place.
+function canonicalLettersFor(question) {
+    return isTrueFalseQuestion(question) ? ['A', 'B'] : ['A', 'B', 'C', 'D'];
+}
+
 // A per-player shuffle of the canonical option letters [A,B,C,D] -> displayed
 // letter. The map says "canonical X is shown in position Y", e.g.
 //   { A:'B', B:'C', C:'D', D:'A' }  means canonical A is displayed on pad B,
 // canonical B on pad C, etc. Each student gets a different rotation/permutation
 // so players can't copy a neighbour's pad tap; the host gets the identity map
 // (the host never answers, and its options preview reads canonical order).
-function buildShuffleMap() {
-    const canonical = ['A', 'B', 'C', 'D'];
+// True/False questions shuffle only A and B, so True and False may swap pads
+// per player but can never land on C or D.
+function buildShuffleMap(question) {
+    const canonical = canonicalLettersFor(question);
     // Fisher-Yates over a copy so the canonical order stays fixed.
     const shuffled = [...canonical];
     for (let i = shuffled.length - 1; i > 0; i--) {
@@ -185,6 +199,11 @@ function buildShuffleMap() {
     const map = {};
     canonical.forEach((letter, i) => {
         map[letter] = shuffled[i];
+    });
+    // Options outside the question's canonical set stay unused, pinned to
+    // themselves so they never claim a pad that a real option needs.
+    ['A', 'B', 'C', 'D'].forEach((letter) => {
+        if (!(letter in map)) map[letter] = letter;
     });
     return map;
 }
@@ -217,6 +236,13 @@ function buildQuestionPayload(session, question, quizTitle, player) {
         D: question.option_d || ''
     };
 
+    // A True/False question is always "True" on canonical A and "False" on
+    // canonical B, with nothing on C/D regardless of what the author stored.
+    if (isTrueFalseQuestion(question)) {
+        canonicalOptions.C = '';
+        canonicalOptions.D = '';
+    }
+
     const isHost = player && player.isHost;
     // Guard against a player entry that is missing (e.g. a reclaimed session
     // where the host was stale-removed) or has no shuffles assigned yet. Fall
@@ -232,6 +258,13 @@ function buildQuestionPayload(session, question, quizTitle, player) {
         displayedOptions[padLetter] = canonicalOptions[inverse[padLetter]];
     });
 
+    // True/False only ever uses A and B; C and D stay empty so the client can
+    // hide those pads instead of rendering placeholders.
+    if (isTrueFalseQuestion(question)) {
+        displayedOptions.C = '';
+        displayedOptions.D = '';
+    }
+
     return {
         questionIndex: session.currentQuestionIndex,
         totalQuestions: session.questions.length,
@@ -239,6 +272,7 @@ function buildQuestionPayload(session, question, quizTitle, player) {
         question: {
             id: question.id,
             text: question.question_text,
+            questionType: question.question_type || 'multiple_choice',
             options: isHost ? canonicalOptions : displayedOptions,
             letterMap: map,
             timeLimit: question.time_limit || 30
@@ -278,7 +312,7 @@ async function emitCurrentQuestionState(socket, session, player) {
 function assignQuestionShuffles(session, question) {
     session.players.forEach((p) => {
         if (!p.isHost && p.shuffleMaps) {
-            p.shuffleMaps[question.id] = buildShuffleMap();
+            p.shuffleMaps[question.id] = buildShuffleMap(question);
         }
     });
 }
