@@ -130,6 +130,18 @@
             <p class="text-slate-500 self-center">Loading results...</p>
         </div>
 
+        <!-- Student Answer Review -->
+        <div id="reviewSection" class="hidden mb-8">
+            <button
+                id="reviewAnswersBtn"
+                class="btn-dashboard"
+                type="button"
+            >
+                📝 Review My Answers
+            </button>
+        </div>
+        <div id="answerReview" class="hidden text-left space-y-4 mb-8"></div>
+
         <!-- Back to Dashboard -->
         <a href="teacher-dashboard.html" class="btn-dashboard">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -214,6 +226,119 @@
             }).join('');
         }
 
+        function getOptionText(question, option) {
+            if (!option) {
+                return 'No answer';
+            }
+
+            const key = `option_${option.toLowerCase()}`;
+            return question[key] || option;
+        }
+
+        async function loadMyAnswers() {
+            const gameId = localStorage.getItem('quizlive_gameId');
+            const username = localStorage.getItem('quizlive_username');
+            const review = document.getElementById('answerReview');
+
+            if (!gameId || !username) {
+                review.innerHTML = `
+                    <p class="text-slate-400">
+                        Your answer review is unavailable for this game.
+                    </p>
+                `;
+                review.classList.remove('hidden');
+                return;
+            }
+
+            review.innerHTML = `
+                <p class="text-slate-400 text-center">
+                    Loading your answers...
+                </p>
+            `;
+            review.classList.remove('hidden');
+
+            try {
+                const response = await fetch(
+                    `/api/game/${encodeURIComponent(gameId)}/my-results?username=${encodeURIComponent(username)}`
+                );
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load your answers.');
+                }
+
+                const answerByQuestion = new Map(
+                    data.player.answers.map(answer => [answer.questionId, answer])
+                );
+
+                review.innerHTML = data.questions.map((question, index) => {
+                    const answer = answerByQuestion.get(question.id);
+                    const selected = answer
+                        ? getOptionText(question, answer.optionCanonical)
+                        : 'No answer';
+
+                    const correct = getOptionText(question, question.correct_option);
+                    const isCorrect = answer && answer.isCorrect;
+
+                    return `
+                        <div class="rounded-2xl bg-slate-900 border border-slate-700 p-5">
+                            <p class="text-sm text-slate-400 mb-2">
+                                Question ${index + 1}
+                            </p>
+
+                            <h3 class="text-lg font-bold text-white mb-4">
+                                ${question.text}
+                            </h3>
+
+                            <p class="text-slate-300 mb-2">
+                                <span class="font-semibold">Your answer:</span>
+                                ${selected}
+                            </p>
+
+                            <p class="text-slate-300 mb-2">
+                                <span class="font-semibold">Correct answer:</span>
+                                ${correct}
+                            </p>
+
+                            <p class="${isCorrect ? 'text-emerald-400' : 'text-red-400'} font-semibold">
+                                ${isCorrect ? '✓ Correct' : '✗ Incorrect'}
+                            </p>
+
+                            <p class="text-slate-400 mt-2">
+                                Points: ${answer ? answer.points : 0}
+                            </p>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Failed to load answer review:', error);
+                review.innerHTML = `
+                    <p class="text-red-400 text-center">
+                        ${error.message}
+                    </p>
+                `;
+            }
+        }
+
+        function setupAnswerReview() {
+            const gameId = localStorage.getItem('quizlive_gameId');
+            const username = localStorage.getItem('quizlive_username');
+            const section = document.getElementById('reviewSection');
+            const button = document.getElementById('reviewAnswersBtn');
+
+            if (!gameId || !username) {
+                return;
+            }
+
+            section.classList.remove('hidden');
+
+            button.addEventListener('click', () => {
+                loadMyAnswers();
+            });
+        }
+
+        setupAnswerReview();
         loadResults();
         celebrate();
     </script>

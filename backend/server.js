@@ -412,15 +412,11 @@ async function handleTimeUp(pin) {
             startQuestionTimer(pin);
         } else {
             session.currentState = 'finished';
-            io.to(pin).emit('game-finished', {
-                leaderboard: session.leaderboard
-            });
 
-            // Feature 2: persist the finished game now. Payload mirrors what
-            // database.insertGameRecord expects (quizId, pin, totalPlayers,
-            // totalQuestions, players[], startedAt).
+            // Feature 2: persist the finished game before notifying clients so the
+            // database-generated game ID can be included in the event.
             try {
-                await database.insertGameRecord({
+                const result = await database.insertGameRecord({
                     quizId: session.quizId,
                     pin: session.pin,
                     totalPlayers: session.players.filter((p) => !p.isHost).length,
@@ -428,9 +424,22 @@ async function handleTimeUp(pin) {
                     players: session.players,
                     startedAt: session.startedAt || new Date().toISOString()
                 });
-                console.log(`Game ${pin} results persisted.`);
+                session.gameId = result.id;
+                console.log(`Game ${pin} results persisted as game ${result.id}.`);
+
+                // Send the completed game ID along with the leaderboard so the
+                // results page can request the student's own answer review.
+                io.to(pin).emit('game-finished', {
+                    gameId: result.id,
+                    leaderboard: session.leaderboard
+                });
             } catch (err) {
                 console.error('Failed to persist game record:', err);
+
+                // Keep the existing game-finished behavior even if persistence fails.
+                io.to(pin).emit('game-finished', {
+                    leaderboard: session.leaderboard
+                });
             }
         }
     }, 5000);
@@ -909,6 +918,7 @@ io.on('connection', (socket) => {
         session.resultsRevealed = true;
 
         io.to(pin).emit('show-results', {
+            gameId: session.gameId,
             leaderboard: session.leaderboard
         });
 
@@ -1475,6 +1485,65 @@ app.get('/api/stats/game/:id', async (req, res) => {
         });
     } catch (err) {
         console.error('Error fetching game stats:', err);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+// Student's own post-game result: returns only the requesting student's
+// answers for a completed game. Unlike /api/stats/game/:id, this endpoint
+// never returns the other players' results.
+app.get('/api/game/:id/my-results', async (req, res) => {
+    try {
+        const game = await database.getGameRecordById(req.params.id);
+
+        if (!game) {
+            return res.status(404).json({ error: 'Game not found.' });
+        }
+
+        const username = String(req.query.username || '').trim();
+
+        if (!username) {
+            return res.status(400).json({ error: 'Username is required.' });
+        }
+
+        const questions = await database.getQuestionsByQuizId(game.quiz_id);
+        const players = await database.getGamePlayers(game.id);
+
+        const player = players.find(
+            (p) => p.username.toLowerCase() === username.toLowerCase()
+        );
+
+        if (!player) {
+            return res.status(404).json({ error: 'Player result not found.' });
+        }
+
+        const answers = JSON.parse(player.answers_json || '[]');
+
+        res.json({
+            game: {
+                id: game.id,
+                quizTitle: game.quiz_title,
+                pin: game.pin,
+                totalQuestions: game.total_questions,
+                finished_at: game.finished_at
+            },
+            player: {
+                username: player.username,
+                score: player.score,
+                answers
+            },
+            questions: questions.map((q) => ({
+                id: q.id,
+                text: q.question_text,
+                option_a: q.option_a,
+                option_b: q.option_b,
+                option_c: q.option_c,
+                option_d: q.option_d,
+                correct_option: q.correct_option
+            }))
+        });
+    } catch (err) {
+        console.error('Error fetching student results:', err);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });

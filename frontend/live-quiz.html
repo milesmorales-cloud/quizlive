@@ -299,6 +299,9 @@
         });
 
         socket.on('game-finished', (data) => {
+            if (data && data.gameId) {
+                localStorage.setItem('quizlive_gameId', String(data.gameId));
+            }
             // Save the final leaderboard so results.html can render instantly
             // when the host reveals. The player does NOT auto-advance — they
             // wait on the overlay below until the host's 'show-results' arrives.
@@ -311,9 +314,14 @@
         // the podium. Payload re-carries the leaderboard so a player who
         // reconnected straight into the reveal still has the data.
         socket.on('show-results', (data) => {
+            if (data && data.gameId) {
+                localStorage.setItem('quizlive_gameId', String(data.gameId));
+            }
+
             if (data && data.leaderboard) {
                 localStorage.setItem('quizlive_leaderboard', JSON.stringify(data.leaderboard));
             }
+
             window.location.href = 'results.html';
         });
 
