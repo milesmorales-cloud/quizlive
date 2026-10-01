@@ -2,3 +2,5 @@ node_modules/
 
 # Logs
 *.log
+backend/quizlive.db
+backend/quizlive.db.backup
