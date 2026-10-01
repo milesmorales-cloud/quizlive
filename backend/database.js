@@ -8,7 +8,14 @@ const db = new sqlite3.Database(DB_PATH, (err) => {
         console.error('Error opening database:', err.message);
     } else {
         console.log('Connected to SQLite database.');
-        initTables();
+        db.run('PRAGMA foreign_keys = ON', (pragmaErr) => {
+            if (pragmaErr) {
+                console.error('Error enabling foreign keys:', pragmaErr.message);
+                return;
+            }
+
+            initTables();
+        });
     }
 });
 
@@ -86,14 +93,124 @@ function initTables() {
         CREATE TABLE IF NOT EXISTS game_records (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             quiz_id INTEGER NOT NULL,
+            quiz_title_snapshot TEXT,
             pin TEXT NOT NULL,
             total_players INTEGER DEFAULT 0,
             total_questions INTEGER DEFAULT 0,
             started_at DATETIME,
             finished_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+            questions_json TEXT
         )
     `;
+
+    function migrateGameRecordsTable(done) {
+        done = done || (() => {});
+
+        db.get(
+            `SELECT sql FROM sqlite_master
+            WHERE type = 'table' AND name = 'game_records'`,
+            (err, table) => {
+                if (err) {
+                    console.error('Error checking game_records schema:', err.message);
+                    return;
+                }
+
+                if (!table) return;
+
+                const hasOldCascade = /FOREIGN KEY\s*\(quiz_id\).*ON DELETE CASCADE/i.test(table.sql);
+                const hasTitleSnapshot = /quiz_title_snapshot/i.test(table.sql);
+                const hasQuestionsSnapshot = /questions_json/i.test(table.sql);
+
+                if (!hasOldCascade && hasTitleSnapshot && hasQuestionsSnapshot) {
+                    done();
+                    return;
+                }
+
+                console.log('Migrating game_records table...');
+
+                db.all(`PRAGMA table_info(game_records)`, (infoErr, columns) => {
+                    if (infoErr) {
+                        console.error('Error reading game_records columns:', infoErr.message);
+                        return;
+                    }
+
+                    const columnNames = new Set(columns.map((column) => column.name));
+
+                    const questionsColumn = columnNames.has('questions_json')
+                        ? 'gr.questions_json'
+                        : 'NULL';
+
+                    const titleColumn = columnNames.has('quiz_title_snapshot')
+                        ? 'gr.quiz_title_snapshot'
+                        : 'NULL';
+
+                    db.run(`PRAGMA foreign_keys = OFF`, (pragmaErr) => {
+                        if (pragmaErr) {
+                            console.error('Error disabling foreign keys:', pragmaErr.message);
+                            return;
+                        }
+
+                        db.serialize(() => {
+                            db.run(`
+                                CREATE TABLE game_records_new (
+                                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                    quiz_id INTEGER NOT NULL,
+                                    quiz_title_snapshot TEXT,
+                                    pin TEXT NOT NULL,
+                                    total_players INTEGER DEFAULT 0,
+                                    total_questions INTEGER DEFAULT 0,
+                                    started_at DATETIME,
+                                    finished_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                    questions_json TEXT
+                                )
+                            `);
+
+                            db.run(`
+                                INSERT INTO game_records_new (
+                                    id,
+                                    quiz_id,
+                                    quiz_title_snapshot,
+                                    pin,
+                                    total_players,
+                                    total_questions,
+                                    started_at,
+                                    finished_at,
+                                    questions_json
+                                )
+                                SELECT
+                                    gr.id,
+                                    gr.quiz_id,
+                                    COALESCE(${titleColumn}, q.title),
+                                    gr.pin,
+                                    gr.total_players,
+                                    gr.total_questions,
+                                    gr.started_at,
+                                    gr.finished_at,
+                                    ${questionsColumn}
+                                FROM game_records gr
+                                LEFT JOIN quizzes q ON q.id = gr.quiz_id
+                            `);
+
+                            db.run(`DROP TABLE game_records`);
+
+                            db.run(`ALTER TABLE game_records_new RENAME TO game_records`);
+
+                            db.run(`PRAGMA foreign_keys = ON`, (enableErr) => {
+                                if (enableErr) {
+                                    console.error('Error re-enabling foreign keys:', enableErr.message);
+                                    return;
+                                }
+
+                                console.log('game_records migration complete.');
+                                done();
+                            });
+                        });
+                    });
+                });
+            }
+        );
+    }
+
 
     const createGamePlayerResults = `
         CREATE TABLE IF NOT EXISTS game_player_results (
@@ -109,19 +226,23 @@ function initTables() {
     db.run(createGameRecords, (err) => {
         if (err) {
             console.error('Error creating game_records table:', err.message);
-        } else {
-            console.log('Game records table ready.');
+            return;
         }
-    });
 
-    db.run(createGamePlayerResults, (err) => {
-        if (err) {
-            console.error('Error creating game_player_results table:', err.message);
-        } else {
-            console.log('Game player results table ready.');
-        }
+        console.log('Game records table ready.');
+
+        migrateGameRecordsTable(() => {
+            db.run(createGamePlayerResults, (playerErr) => {
+                if (playerErr) {
+                    console.error('Error creating game_player_results table:', playerErr.message);
+                } else {
+                    console.log('Game player results table ready.');
+                }
+            });
+        });
     });
 }
+
 
 function insertQuiz(quiz) {
     return new Promise((resolve, reject) => {
@@ -337,12 +458,21 @@ function updateQuizQuestions(quizId, title, questions) {
 // history (used by the teacher statistics/export views).
 function insertGameRecord(game) {
     return new Promise((resolve, reject) => {
-        const { quizId, pin, totalPlayers, totalQuestions, players, startedAt } = game;
+        const { quizId, quizTitle, questions, pin, totalPlayers, totalQuestions, players, startedAt } = game;
 
         db.run(
-            `INSERT INTO game_records (quiz_id, pin, total_players, total_questions, started_at, finished_at)
-             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-            [quizId, pin, totalPlayers, totalQuestions, startedAt],
+            `INSERT INTO game_records (
+                quiz_id,
+                quiz_title_snapshot,
+                pin,
+                total_players,
+                total_questions,
+                started_at,
+                finished_at,
+                questions_json
+            )
+            VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?)`,
+            [quizId, quizTitle, pin, totalPlayers, totalQuestions, startedAt, JSON.stringify(questions)],
             function (err) {
                 if (err) { reject(err); return; }
 
@@ -384,7 +514,7 @@ function insertGamePlayerResults(gameId, players) {
 function getGameRecords() {
     return new Promise((resolve, reject) => {
         db.all(
-            `SELECT gr.*, q.title AS quiz_title
+            `SELECT gr.*, COALESCE(gr.quiz_title_snapshot, q.title) AS quiz_title
              FROM game_records gr
              LEFT JOIN quizzes q ON q.id = gr.quiz_id
              ORDER BY gr.finished_at DESC, gr.id DESC`,
@@ -399,13 +529,29 @@ function getGameRecords() {
 function getGameRecordById(gameId) {
     return new Promise((resolve, reject) => {
         db.get(
-            `SELECT gr.*, q.title AS quiz_title
+            `SELECT gr.*, COALESCE(gr.quiz_title_snapshot, q.title) AS quiz_title
              FROM game_records gr
              LEFT JOIN quizzes q ON q.id = gr.quiz_id
              WHERE gr.id = ?`,
             [gameId],
             (err, row) => {
                 if (err) { reject(err); } else { resolve(row); }
+            }
+        );
+    });
+}
+
+function deleteGameRecord(gameId) {
+    return new Promise((resolve, reject) => {
+        db.run(
+            'DELETE FROM game_records WHERE id = ?',
+            [gameId],
+            function (err) {
+                if (err) {
+                    reject(err);
+                } else {
+                    resolve({ deleted: this.changes > 0 });
+                }
             }
         );
     });
@@ -438,5 +584,6 @@ module.exports = {
     insertGameRecord,
     getGameRecords,
     getGameRecordById,
+    deleteGameRecord,
     getGamePlayers
 };

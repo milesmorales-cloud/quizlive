@@ -67,6 +67,44 @@ const io = new Server(server, {
 // Middleware — REST CORS uses the same port-scoped policy as Socket.IO
 app.use(cors({ origin: corsOriginCallback, credentials: true }));
 app.use(express.json());
+async function requireTeacher(req, res, next) {
+    const authHeader = req.headers.authorization || '';
+
+    if (!authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ error: 'Teacher authentication required.' });
+    }
+
+    const token = authHeader.slice(7);
+
+    try {
+        const decoded = Buffer.from(token, 'base64').toString('utf8');
+        const [userId, username, timestamp] = decoded.split(':');
+
+        if (!userId || !username || !timestamp) {
+            return res.status(401).json({ error: 'Invalid teacher token.' });
+        }
+
+        if (!Number.isFinite(Number(userId)) || !Number.isFinite(Number(timestamp))) {
+            return res.status(401).json({ error: 'Invalid teacher token.' });
+        }
+
+        const user = await database.getUserByUsername(username);
+
+        if (!user || user.id !== Number(userId)) {
+            return res.status(401).json({ error: 'Invalid teacher token.' });
+        }
+
+        req.teacher = {
+            id: user.id,
+            username: user.username
+        };
+
+        next();
+    } catch (err) {
+        console.error('Teacher authentication error:', err);
+        return res.status(401).json({ error: 'Invalid teacher token.' });
+    }
+}
 
 // In-memory game sessions: { PIN -> GameSession }
 const activeGames = new Map();
@@ -412,12 +450,16 @@ async function handleTimeUp(pin) {
             startQuestionTimer(pin);
         } else {
             session.currentState = 'finished';
+            const quiz = await database.getQuizById(session.quizId);
+            const quizTitle = quiz ? quiz.title : 'Quiz';
 
             // Feature 2: persist the finished game before notifying clients so the
             // database-generated game ID can be included in the event.
             try {
                 const result = await database.insertGameRecord({
                     quizId: session.quizId,
+                    quizTitle,
+                    questions: session.questions,
                     pin: session.pin,
                     totalPlayers: session.players.filter((p) => !p.isHost).length,
                     totalQuestions: session.questions.length,
@@ -1449,20 +1491,34 @@ app.get('/api/stats/game/:id', async (req, res) => {
             return res.status(404).json({ error: 'Game not found.' });
         }
 
-        const questions = await database.getQuestionsByQuizId(game.quiz_id);
+        const questions = JSON.parse(game.questions_json || '[]');
         const players = await database.getGamePlayers(game.id);
 
-        const playersDetail = players.map((p) => {
-            const answers = JSON.parse(p.answers_json || '[]');
+        const questionPerformance = questions.map((q, index) => {
+            const answers = players.flatMap((p) => {
+                const playerAnswers = JSON.parse(p.answers_json || '[]');
+                return playerAnswers.filter((a) =>
+                    a.questionId === q.id || a.questionIndex === index
+                );
+            });
+
             const correct = answers.filter((a) => a.isCorrect).length;
             const answered = answers.filter((a) => a.option !== null).length;
+            const incorrect = answered - correct;
+            const unanswered = players.length - answered;
+            const accuracy = players.length
+                ? Math.round((correct / players.length) * 100)
+                : 0;
+
             return {
-                username: p.username,
-                score: p.score,
+                number: index + 1,
+                id: q.id,
+                text: q.question_text,
                 correct,
-                wrong: answered - correct,
-                unanswered: questions.length - answered,
-                answers
+                incorrect,
+                unanswered,
+                accuracy,
+                correct_option: q.correct_option
             };
         });
 
@@ -1476,15 +1532,34 @@ app.get('/api/stats/game/:id', async (req, res) => {
                 total_players: game.total_players,
                 total_questions: game.total_questions
             },
-            questions: questions.map((q) => ({
-                id: q.id,
-                text: q.question_text,
-                correct_option: q.correct_option
-            })),
-            players: playersDetail
+            questions: questionPerformance
         });
     } catch (err) {
         console.error('Error fetching game stats:', err);
+        res.status(500).json({ error: 'Internal server error.' });
+    }
+});
+
+app.delete('/api/stats/game/:id', requireTeacher, async (req, res) => {
+    try {
+        const gameId = Number(req.params.id);
+
+        if (!Number.isInteger(gameId) || gameId <= 0) {
+            return res.status(400).json({ error: 'Invalid game ID.' });
+        }
+
+        const result = await database.deleteGameRecord(gameId);
+
+        if (!result.deleted) {
+            return res.status(404).json({ error: 'Game not found.' });
+        }
+
+        res.json({
+            status: 'success',
+            message: 'Game statistics deleted successfully.'
+        });
+    } catch (err) {
+        console.error('Error deleting game stats:', err);
         res.status(500).json({ error: 'Internal server error.' });
     }
 });
@@ -1506,7 +1581,7 @@ app.get('/api/game/:id/my-results', async (req, res) => {
             return res.status(400).json({ error: 'Username is required.' });
         }
 
-        const questions = await database.getQuestionsByQuizId(game.quiz_id);
+        const questions = JSON.parse(game.questions_json || '[]');
         const players = await database.getGamePlayers(game.id);
 
         const player = players.find(
@@ -1559,7 +1634,7 @@ app.get('/api/stats/game/:id/export', async (req, res) => {
             return res.status(404).json({ error: 'Game not found.' });
         }
 
-        const questions = await database.getQuestionsByQuizId(game.quiz_id);
+        const questions = JSON.parse(game.questions_json || '[]');
         const players = await database.getGamePlayers(game.id);
 
         const header = ['username', 'score', 'correct', 'wrong', 'unanswered'];
