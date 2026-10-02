@@ -67,6 +67,40 @@ const io = new Server(server, {
 // Middleware — REST CORS uses the same port-scoped policy as Socket.IO
 app.use(cors({ origin: corsOriginCallback, credentials: true }));
 app.use(express.json());
+// Shared teacher-token verification. The token is the base64
+// "userId:username:timestamp" string handed out at login, and it is checked
+// identically for REST requests and Socket.IO handshakes. Returns the teacher
+// on success, or null when the token is missing, malformed, or stale.
+async function verifyTeacherToken(token) {
+    if (!token || typeof token !== 'string') {
+        return null;
+    }
+
+    try {
+        const decoded = Buffer.from(token, 'base64').toString('utf8');
+        const [userId, username, timestamp] = decoded.split(':');
+
+        if (!userId || !username || !timestamp) {
+            return null;
+        }
+
+        if (!Number.isFinite(Number(userId)) || !Number.isFinite(Number(timestamp))) {
+            return null;
+        }
+
+        const user = await database.getUserByUsername(username);
+
+        if (!user || user.id !== Number(userId)) {
+            return null;
+        }
+
+        return { id: user.id, username: user.username };
+    } catch (err) {
+        console.error('Teacher token verification error:', err);
+        return null;
+    }
+}
+
 async function requireTeacher(req, res, next) {
     const authHeader = req.headers.authorization || '';
 
@@ -74,37 +108,41 @@ async function requireTeacher(req, res, next) {
         return res.status(401).json({ error: 'Teacher authentication required.' });
     }
 
-    const token = authHeader.slice(7);
+    const teacher = await verifyTeacherToken(authHeader.slice(7));
 
-    try {
-        const decoded = Buffer.from(token, 'base64').toString('utf8');
-        const [userId, username, timestamp] = decoded.split(':');
-
-        if (!userId || !username || !timestamp) {
-            return res.status(401).json({ error: 'Invalid teacher token.' });
-        }
-
-        if (!Number.isFinite(Number(userId)) || !Number.isFinite(Number(timestamp))) {
-            return res.status(401).json({ error: 'Invalid teacher token.' });
-        }
-
-        const user = await database.getUserByUsername(username);
-
-        if (!user || user.id !== Number(userId)) {
-            return res.status(401).json({ error: 'Invalid teacher token.' });
-        }
-
-        req.teacher = {
-            id: user.id,
-            username: user.username
-        };
-
-        next();
-    } catch (err) {
-        console.error('Teacher authentication error:', err);
+    if (!teacher) {
         return res.status(401).json({ error: 'Invalid teacher token.' });
     }
+
+    req.teacher = teacher;
+
+    next();
 }
+
+// Socket.IO authentication — reads the same teacherToken from the handshake
+// auth payload. A socket is NOT rejected when the token is absent: students
+// join without one, so this only attaches socket.teacher for handshakes that
+// present a valid teacher token. Handshakes carrying a bad token are treated as
+// unauthenticated rather than refused, keeping current join behavior intact.
+io.use(async (socket, next) => {
+    const handshake = socket.handshake || {};
+    const auth = handshake.auth || {};
+    const query = handshake.query || {};
+
+    let token = auth.teacherToken || auth.token || query.teacherToken || query.token;
+
+    if (typeof token === 'string') {
+        token = token.trim().replace(/^Bearer\s+/i, '');
+    }
+
+    const teacher = token ? await verifyTeacherToken(token) : null;
+
+    if (teacher) {
+        socket.teacher = teacher;
+    }
+
+    next();
+});
 
 // In-memory game sessions: { PIN -> GameSession }
 const activeGames = new Map();
@@ -117,7 +155,7 @@ function generatePIN() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-function createGameSession(hostId, hostName, quizId) {
+function createGameSession(hostId, hostName, quizId, teacherId) {
     let pin = generatePIN();
     while (activeGames.has(pin)) {
         pin = generatePIN();
@@ -128,6 +166,10 @@ function createGameSession(hostId, hostName, quizId) {
         hostId,
         hostName,
         quizId,
+        // teacherId is the authenticated owner of this lobby (users.id), taken
+        // from socket.teacher at creation. hostId above stays the host's live
+        // socket id and is re-bound on navigation; teacherId never changes.
+        teacherId: teacherId ?? null,
         // hostToken is a per-session secret handed to the host's browser. It lets
         // the next page (waiting-room.html / host-game.html) reclaim the lobby
         // with a fresh socket after navigation, because real browsers always
@@ -461,6 +503,7 @@ async function handleTimeUp(pin) {
                     quizTitle,
                     questions: session.questions,
                     pin: session.pin,
+                    creatorId: session.teacherId ?? null,
                     totalPlayers: session.players.filter((p) => !p.isHost).length,
                     totalQuestions: session.questions.length,
                     players: session.players,
@@ -498,6 +541,15 @@ io.on('connection', (socket) => {
     // HOST: Create Lobby
     // --------------------------------------------------------
     socket.on('host-create-lobby', ({ hostName, quizId }, callback) => {
+        // Only an authenticated teacher may open a lobby. Player sockets connect
+        // without a token, so this is enforced here rather than in io.use().
+        if (!socket.teacher) {
+            const error = 'Teacher authentication required.';
+            socket.emit('lobby-created', { success: false, error });
+            if (callback) callback({ success: false, error });
+            return;
+        }
+
         if (!quizId) {
             const error = 'Quiz ID is required.';
             socket.emit('lobby-created', { success: false, error });
@@ -505,8 +557,8 @@ io.on('connection', (socket) => {
             return;
         }
 
-        const host = hostName || 'Host';
-        const session = createGameSession(socket.id, host, quizId);
+        const host = socket.teacher.username || hostName || 'Host';
+        const session = createGameSession(socket.id, host, quizId, socket.teacher.id);
         socket.join(session.pin);
 
         console.log(`Lobby created by ${host} with PIN: ${session.pin}`);
@@ -1274,7 +1326,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 });
 
-app.post('/api/quizzes', async (req, res) => {
+app.post('/api/quizzes', requireTeacher, async (req, res) => {
     try {
         const { title, description, questions } = req.body;
 
@@ -1298,6 +1350,7 @@ app.post('/api/quizzes', async (req, res) => {
         const quiz = {
             title,
             description: description || '',
+            creator_id: req.teacher.id,
             questions
         };
 
@@ -1315,9 +1368,9 @@ app.post('/api/quizzes', async (req, res) => {
     }
 });
 
-app.get('/api/quizzes', async (req, res) => {
+app.get('/api/quizzes', requireTeacher, async (req, res) => {
     try {
-        const quizzes = await database.getAllQuizzes();
+        const quizzes = await database.getAllQuizzes(req.teacher.id);
         res.json(quizzes);
     } catch (err) {
         console.error('Error fetching quizzes:', err);
@@ -1325,12 +1378,16 @@ app.get('/api/quizzes', async (req, res) => {
     }
 });
 
-app.get('/api/quizzes/:id', async (req, res) => {
+app.get('/api/quizzes/:id', requireTeacher, async (req, res) => {
     try {
         const quiz = await database.getQuizById(req.params.id);
 
         if (!quiz) {
             return res.status(404).json({ error: 'Quiz not found.' });
+        }
+
+        if (Number(quiz.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this quiz.' });
         }
 
         const questions = await database.getQuestionsByQuizId(req.params.id);
@@ -1342,12 +1399,17 @@ app.get('/api/quizzes/:id', async (req, res) => {
     }
 });
 
-app.get('/api/quizzes/:id/details', async (req, res) => {
+app.get('/api/quizzes/:id/details', requireTeacher, async (req, res) => {
     try {
         const quiz = await database.getQuizById(req.params.id);
         if (!quiz) {
             return res.status(404).json({ error: 'Quiz not found.' });
         }
+
+        if (Number(quiz.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this quiz.' });
+        }
+
         const questions = await database.getQuestionsByQuizId(req.params.id);
         res.json({ ...quiz, questions });
     } catch (err) {
@@ -1356,7 +1418,7 @@ app.get('/api/quizzes/:id/details', async (req, res) => {
     }
 });
 
-app.put('/api/quizzes/:id/update', async (req, res) => {
+app.put('/api/quizzes/:id/update', requireTeacher, async (req, res) => {
     try {
         const quizId = req.params.id;
         const { title, questions } = req.body;
@@ -1381,6 +1443,10 @@ app.put('/api/quizzes/:id/update', async (req, res) => {
             return res.status(404).json({ error: 'Quiz not found.' });
         }
 
+        if (Number(quiz.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this quiz.' });
+        }
+
         await database.updateQuizQuestions(quizId, title, questions);
 
         res.json({
@@ -1395,13 +1461,17 @@ app.put('/api/quizzes/:id/update', async (req, res) => {
     }
 });
 
-app.delete('/api/quizzes/:id', async (req, res) => {
+app.delete('/api/quizzes/:id', requireTeacher, async (req, res) => {
     try {
         const quizId = req.params.id;
         const quiz = await database.getQuizById(quizId);
 
         if (!quiz) {
             return res.status(404).json({ error: 'Quiz not found.' });
+        }
+
+        if (Number(quiz.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this quiz.' });
         }
 
         await database.deleteQuiz(quizId);
@@ -1436,9 +1506,9 @@ app.delete('/api/questions/:id', async (req, res) => {
 // Summary statistics: totals across all recorded games plus a list of every
 // completed game (with its per-game average score) so the teacher dashboard
 // can render summary cards and a clickable history.
-app.get('/api/stats', async (req, res) => {
+app.get('/api/stats', requireTeacher, async (req, res) => {
     try {
-        const games = await database.getGameRecords();
+        const games = await database.getGameRecords(req.teacher.id);
 
         let totalPlayers = 0;
         let scoreSum = 0;
@@ -1483,12 +1553,16 @@ app.get('/api/stats', async (req, res) => {
 // Full per-game detail: the questions that were asked plus a per-player
 // breakdown (correct / wrong / unanswered counts and their full answer array),
 // used by statistics.html?game=<id> to render the tall breakdown table.
-app.get('/api/stats/game/:id', async (req, res) => {
+app.get('/api/stats/game/:id', requireTeacher, async (req, res) => {
     try {
         const game = await database.getGameRecordById(req.params.id);
 
         if (!game) {
             return res.status(404).json({ error: 'Game not found.' });
+        }
+
+        if (Number(game.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this game.' });
         }
 
         const questions = JSON.parse(game.questions_json || '[]');
@@ -1546,6 +1620,16 @@ app.delete('/api/stats/game/:id', requireTeacher, async (req, res) => {
 
         if (!Number.isInteger(gameId) || gameId <= 0) {
             return res.status(400).json({ error: 'Invalid game ID.' });
+        }
+
+        const game = await database.getGameRecordById(gameId);
+
+        if (!game) {
+            return res.status(404).json({ error: 'Game not found.' });
+        }
+
+        if (Number(game.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this game.' });
         }
 
         const result = await database.deleteGameRecord(gameId);
@@ -1626,12 +1710,16 @@ app.get('/api/game/:id/my-results', async (req, res) => {
 // CSV export of one game: one row per student with score + per-question
 // columns (q<i>_ans = the displayed option letter, q<i>_pts = points earned).
 // A UTF-8 BOM (EF BB BF) prefixes the payload so Excel opens it cleanly.
-app.get('/api/stats/game/:id/export', async (req, res) => {
+app.get('/api/stats/game/:id/export', requireTeacher, async (req, res) => {
     try {
         const game = await database.getGameRecordById(req.params.id);
 
         if (!game) {
             return res.status(404).json({ error: 'Game not found.' });
+        }
+
+        if (Number(game.creator_id) !== Number(req.teacher.id)) {
+            return res.status(403).json({ error: 'You do not have access to this game.' });
         }
 
         const questions = JSON.parse(game.questions_json || '[]');

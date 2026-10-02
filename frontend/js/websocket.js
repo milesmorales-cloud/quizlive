@@ -18,9 +18,17 @@
     // Frontend origin used for CORS allow-listing on the server side.
     const FRONTEND_ORIGIN = window.location.origin;
 
+    // Teachers send their existing token in the handshake so the server can
+    // attach socket.teacher. Students have no token; the handshake still goes
+    // out (with a null value) and their connection is unaffected.
+    const teacherToken = localStorage.getItem('teacherToken');
+
     // Connect to the backend Socket.IO server
     const socket = io(BACKEND_URL, {
         transports: ['websocket', 'polling'],
+        auth: {
+            teacherToken: teacherToken || null
+        },
         // Explicit origin so the server CORS check can validate it
         extraHeaders: {
             Origin: FRONTEND_ORIGIN

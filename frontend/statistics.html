@@ -216,7 +216,10 @@
         }
 
         async function api(path) {
-            const res = await fetch(`${API_BASE}${path}`);
+            const token = localStorage.getItem('teacherToken');
+            const res = await fetch(`${API_BASE}${path}`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            });
             if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
             return res.json();
         }
@@ -453,7 +456,31 @@
 
         // Trigger the CSV file download via the export endpoint.
         function exportCsv(gameId) {
-            window.location.href = `${API_BASE}/api/stats/game/${gameId}/export`;
+            const token = localStorage.getItem('teacherToken');
+            fetch(`${API_BASE}/api/stats/game/${gameId}/export`, {
+                headers: token ? { Authorization: `Bearer ${token}` } : {}
+            })
+                .then((res) => {
+                    if (!res.ok) {
+                        return res.json().catch(() => ({})).then((d) => {
+                            throw new Error(d.error || `HTTP ${res.status}`);
+                        });
+                    }
+                    return res.blob();
+                })
+                .then((blob) => {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `game-${gameId}-stats.csv`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                })
+                .catch((err) => {
+                    alert(`Couldn't export CSV: ${err.message}`);
+                });
         }
 
         async function deleteGame(gameId) {

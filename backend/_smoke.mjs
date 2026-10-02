@@ -15,6 +15,9 @@ const io = require('socket.io-client');
 const PORT = 3299;          // use an unlikely port to avoid collisions
 const BASE = `http://localhost:${PORT}`;
 let serverProc;
+let teacherToken = '';
+const smokeUsername = `smoke_${Date.now()}`;
+const smokePassword = 'smoke123';
 let PASS = 0, FAIL = 0;
 const results = [];
 
@@ -73,6 +76,39 @@ async function waitForHealth(retries = 30) {
     await new Promise(r => setTimeout(r, 300));
   }
   return false;
+}
+async function authenticateSmokeTeacher() {
+  const registerResponse = await fetchJson(`${BASE}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: smokeUsername,
+      password: smokePassword,
+      security_question: 'Smoke test question',
+      security_answer: 'smoke'
+    })
+  });
+
+  if (registerResponse.status !== 201) {
+    throw new Error(`Registration failed: ${registerResponse.status}`);
+  }
+
+  const loginResponse = await fetchJson(`${BASE}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: smokeUsername,
+      password: smokePassword
+    })
+  });
+
+  const loginBody = await loginResponse.json();
+
+  if (!loginResponse.ok || !loginBody.teacherToken) {
+    throw new Error(`Login failed: ${loginResponse.status}`);
+  }
+
+  teacherToken = loginBody.teacherToken;
 }
 
 // ── 1. Static Routes ──────────────────────────────────────────
@@ -133,7 +169,10 @@ async function smokeApi() {
   try {
     const cr = await fetchJson(`${BASE}/api/quizzes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${teacherToken}`
+      },
       body: JSON.stringify(quizPayload)
     });
     const cj = await cr.json();
@@ -145,7 +184,9 @@ async function smokeApi() {
 
   // LIST quizzes
   try {
-    const lr = await fetchJson(`${BASE}/api/quizzes`);
+    const lr = await fetchJson(`${BASE}/api/quizzes`, {
+      headers: { 'Authorization': `Bearer ${teacherToken}` }
+    });
     const list = await lr.json();
     if (lr.ok && Array.isArray(list) && list.find(q => q.id === quizId)) {
       ok('GET /api/quizzes (list)', `found ${list.length} quizzes, quizId present`);
@@ -155,7 +196,9 @@ async function smokeApi() {
   // GET single quiz
   if (quizId) {
     try {
-      const gr = await fetchJson(`${BASE}/api/quizzes/${quizId}`);
+      const gr = await fetchJson(`${BASE}/api/quizzes/${quizId}`, {
+        headers: { 'Authorization': `Bearer ${teacherToken}` }
+      });
       const g = await gr.json();
       if (gr.ok && g.questions && g.questions.length === 2) {
         ok('GET /api/quizzes/:id', `2 questions returned`);
@@ -172,7 +215,10 @@ async function smokeApi() {
     try {
       const ur = await fetchJson(`${BASE}/api/quizzes/${quizId}/update`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${teacherToken}`
+        },
         body: JSON.stringify(updatePayload)
       });
       const uj = await ur.json();
@@ -185,7 +231,10 @@ async function smokeApi() {
   // DELETE quiz
   if (quizId) {
     try {
-      const dr = await fetchJson(`${BASE}/api/quizzes/${quizId}`, { method: 'DELETE' });
+      const dr = await fetchJson(`${BASE}/api/quizzes/${quizId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${teacherToken}` }
+      });
       const dj = await dr.json();
       if (dr.ok) {
         ok('DELETE /api/quizzes/:id', dj.message);
@@ -194,7 +243,9 @@ async function smokeApi() {
 
     // Confirm deletion
     try {
-      const gr2 = await fetchJson(`${BASE}/api/quizzes/${quizId}`);
+      const gr2 = await fetchJson(`${BASE}/api/quizzes/${quizId}`, {
+        headers: { 'Authorization': `Bearer ${teacherToken}` }
+      });
       if (gr2.status === 404) {
         ok('DELETE confirmed (GET returns 404)', `quizId=${quizId} gone from DB`);
       } else ko('DELETE confirmed', `GET returned ${gr2.status} — quiz still exists!`);
@@ -205,7 +256,10 @@ async function smokeApi() {
   try {
     const er = await fetchJson(`${BASE}/api/quizzes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${teacherToken}`
+      },
       body: JSON.stringify({ title: 'empty quiz', questions: [] })
     });
     if (er.status === 400) ok('POST quiz with no questions', `correctly returns 400`);
@@ -216,7 +270,10 @@ async function smokeApi() {
   try {
     const er2 = await fetchJson(`${BASE}/api/quizzes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${teacherToken}`
+      },
       body: JSON.stringify({ title: '', questions: [{ question_text: 'Q', option_a: 'A', option_b: 'B', correct_option: 'A' }] })
     });
     if (er2.status === 400) ok('POST quiz with missing title', `correctly returns 400`);
@@ -257,7 +314,11 @@ async function smokeSocket() {
   await new Promise(r => setTimeout(r, 500)); // let server settle
 
   return new Promise((resolve) => {
-    const hostSocket = io(BASE, { transports: ['websocket', 'polling'], reconnection: false });
+    const hostSocket = io(BASE, {
+      transports: ['websocket', 'polling'],
+      reconnection: false,
+      auth: { teacherToken }
+    });
 
     hostSocket.on('connect_error', (err) => {
       ko('WebSocket connect', err.message);
@@ -273,7 +334,11 @@ async function smokeSocket() {
         if (cb && cb.success) {
           ok('host-create-lobby', `pin=${cb.pin}`);
           const pin = cb.pin;
-          const playerSocket = io(BASE, { transports: ['websocket', 'polling'], reconnection: false });
+          const playerSocket = io(BASE, {
+            transports: ['websocket', 'polling'],
+            reconnection: false,
+            auth: { teacherToken }
+          });
 
           playerSocket.on('connect', () => {
             ok('Player WebSocket connect', `playerSocketId=${playerSocket.id}`);
@@ -350,7 +415,7 @@ async function main() {
     await startServer();
     const healthy = await waitForHealth();
     if (!healthy) { console.error('❌ Server never became healthy'); process.exit(1); }
-
+    await authenticateSmokeTeacher();
     await smokeRoutes();
     await smokeApi();
     await smokeCors();

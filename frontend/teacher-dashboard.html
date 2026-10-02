@@ -460,7 +460,12 @@
 
             try {
                 // GET request to the backend API to fetch all quizzes
-                const response = await fetch(`${API_BASE}/api/quizzes`);
+                const token = localStorage.getItem('teacherToken');
+                const response = await fetch(`${API_BASE}/api/quizzes`, {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                });
                 const data = await response.json();
 
                 if (!response.ok) {
