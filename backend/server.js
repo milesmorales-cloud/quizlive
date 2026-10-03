@@ -1,3 +1,7 @@
+// Load .env FIRST so FRONTEND_URL / FRONTEND_PORT / PORT are populated
+// before any of them are read below.
+require('dotenv').config();
+
 const express = require('express');
 const http = require('http');
 const os = require('os');
@@ -44,6 +48,15 @@ const server = http.createServer(app);
 const FRONTEND_PORT = process.env.FRONTEND_PORT || 3000;
 const allowedOriginPattern = new RegExp(`^http://[^:/]+:${FRONTEND_PORT}$`);
 
+// Deployed origin(s), from FRONTEND_URL (e.g. https://quizlive.onrender.com).
+// Comma-separated values are accepted so extra origins can be appended, and
+// trailing slashes are stripped because the browser's Origin header never
+// carries a path or trailing slash.
+const configuredOrigins = (process.env.FRONTEND_URL || '')
+    .split(',')
+    .map((value) => value.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
 // Shared CORS origin policy: the whole app runs on ONE port (3000), so only
 // origins on that port are allowed. Requests with no Origin header (native
 // clients, server-to-server, same-origin where the browser omits the header)
@@ -53,6 +66,8 @@ const allowedOriginPattern = new RegExp(`^http://[^:/]+:${FRONTEND_PORT}$`);
 // directly stalls the middleware forever because cb is never invoked.
 function corsOriginCallback(origin, callback) {
     if (!origin) return callback(null, true);
+    const normalized = origin.replace(/\/+$/, '');
+    if (configuredOrigins.includes(normalized)) return callback(null, true);
     callback(null, allowedOriginPattern.test(origin));
 }
 
