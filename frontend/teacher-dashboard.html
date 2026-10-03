@@ -489,7 +489,14 @@
             btn.style.opacity = '0.5';
 
             try {
-                const res = await fetch(`${API_BASE}/api/quizzes/${quizId}`, { method: 'DELETE' });
+                const teacherToken = localStorage.getItem('teacherToken');
+
+                const res = await fetch(`${API_BASE}/api/quizzes/${quizId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        Authorization: `Bearer ${teacherToken}`
+                    }
+                });
                 const data = await res.json();
 
                 if (!res.ok) throw new Error(data.error || 'Delete failed.');
