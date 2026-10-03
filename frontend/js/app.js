@@ -51,14 +51,25 @@ function hostGame(quizId) {
         // Fetch the current local network IP from the backend so the QR code
         // works on any Wi-Fi without hardcoding an address.
         let joinUrl;
-        try {
-            const ipRes = await fetch(`${BACKEND_URL}/api/network-ip`);
-            const ipData = await ipRes.json();
-            const dynamicIp = ipData.ip || '127.0.0.1';
-            joinUrl = `http://${dynamicIp}:3000/join-quiz.html?pin=${pin}`;
-        } catch (_) {
-            // Fallback if the endpoint is unreachable
-            joinUrl = `http://${window.location.hostname}:3000/join-quiz.html?pin=${pin}`;
+        
+        const host = window.location.hostname;
+        const isLocal = /^(localhost|127\.0\.0\.1|::1)$/i.test(host);
+
+        if (!isLocal) {
+            // LAN IP, hostname, or production deployment:
+            // use the exact URL the browser is currently using.
+            joinUrl = `${window.location.origin}/join-quiz.html?pin=${pin}`;
+        } else {
+            // Localhost on the teacher's PC:
+            // use the detected LAN IP so phones on the same Wi-Fi can connect.
+            try {
+                const ipRes = await fetch(`${BACKEND_URL}/api/network-ip`);
+                const ipData = await ipRes.json();
+                const dynamicIp = ipData.ip || host;
+                joinUrl = `http://${dynamicIp}:3000/join-quiz.html?pin=${pin}`;
+            } catch (_) {
+                joinUrl = `${window.location.origin}/join-quiz.html?pin=${pin}`;
+            }
         }
 
         // Store it so the waiting room can render the QR code after redirect
