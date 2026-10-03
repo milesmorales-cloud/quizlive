@@ -4,3 +4,5 @@ node_modules/
 *.log
 backend/quizlive.db
 backend/quizlive.db.backup
+# Environment variables
+.env
